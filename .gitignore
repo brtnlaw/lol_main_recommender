@@ -1,0 +1,10 @@
+*.pyc
+*.pyo
+*.yaml
+*.env 
+*.pkl
+*.mdl
+*.json
+src/*.egg-info
+venv/
+**/.vscode/
