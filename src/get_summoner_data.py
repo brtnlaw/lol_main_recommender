@@ -1,9 +1,15 @@
 import json
 import os
+import pickle as pkl
 import time
+from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
 import requests
+from sklearn.preprocessing import LabelEncoder
+
+from get_champ_id_mapping import get_champ_id_to_name
 
 API_KEY = os.getenv("RIOT_API_KEY")
 PROJECT_ROOT = "/Users/brtnl/OneDrive/Desktop/code/lol_main_recommender"
@@ -84,6 +90,84 @@ def save_challenger_data():
         with open(file_path, "w") as f:
             json.dump(match_data, f, indent=2)
         print(f"Successfully saved data for puuid: {puuid}")
+
+
+def json_to_df() -> pd.DataFrame:
+    """
+    Turns the folder of jsons into a useable DataFrame.
+
+    Returns:
+        pd.DataFrame: Combined json DataFrame.
+    """
+    pkl_path = os.path.join(PROJECT_ROOT, "src/data.pkl")
+    if os.path.exists(pkl_path):
+        with open(pkl_path, "rb") as f:
+            return pkl.load(f)
+
+    json_folder_path = os.path.join(PROJECT_ROOT, "src/summoner_data/")
+
+    player_champions = defaultdict(
+        lambda: defaultdict(int)
+    )  # {player_id: {champion_id: count}}
+    for json_file in os.listdir(json_folder_path):
+        puuid = json_file.split(".json")[0]
+        with open(os.path.join(json_folder_path, json_file), "r") as f:
+            match_data = json.load(f)
+        for match in match_data:
+            participants = match.get("info", {}).get("participants", [])
+            for participant in participants:
+                if participant.get("puuid") == puuid:
+                    # Store information to get rating
+                    champion_id = participant.get("championId")
+                    win = participant.get("win")
+                    kills = participant.get("kills")
+                    deaths = participant.get("deaths")
+                    assists = participant.get("assists")
+
+                    # rating = (win_percentage_weight * win_percentage) + (kda_weight * kda) + (matches_played_weight * matches_played)
+                    player_champions[puuid][champion_id] += 1
+                    player_champions[puuid][f"{champion_id}_kills"] += kills
+                    player_champions[puuid][f"{champion_id}_assists"] += deaths
+                    player_champions[puuid][f"{champion_id}_deaths"] += assists
+                    if win == 1:
+                        player_champions[puuid][f"{champion_id}_wins"] += 1
+            player_champion_stats = defaultdict(lambda: defaultdict(int))
+
+    # Insert own rating
+    player_champion_stats = defaultdict(lambda: defaultdict(int))
+    # calculate kda
+    for puuid, champ_data in player_champions.items():
+        for champion_id, count in champ_data.items():
+            # If the key is equal to the id, can construct the stats
+            if isinstance(champion_id, int):
+                kills = player_champions[puuid][f"{champion_id}_kills"]
+                assists = player_champions[puuid][f"{champion_id}_assists"]
+                deaths = player_champions[puuid][f"{champion_id}_deaths"]
+                wins = player_champions[puuid].get(f"{champion_id}_wins", 0)
+                win_pct = (wins / count) * 100 if count > 0 else 0
+                kda = (kills + assists) / (deaths if deaths != 0 else 1)
+
+                player_champion_stats[puuid][champion_id] = kda + win_pct + count
+
+    data_df = pd.DataFrame(player_champion_stats).transpose().fillna(0)
+    with open(pkl_path, "wb") as f:
+        pkl.dump(data_df, f)
+    return data_df
+
+
+def load_clean_df():
+    # TODO: include champ name mapping, perhaps
+    df = json_to_df()
+    df.index.name = "puuid"
+    df.reset_index(inplace=True)
+    df = pd.melt(df, id_vars=["puuid"], var_name="orig_champ_id", value_name="rating")
+    champ_map = get_champ_id_to_name()
+    df["champion"] = df["orig_champ_id"].apply(lambda x: champ_map.get(str(x)))
+    le_user = LabelEncoder()
+    df["user_id"] = le_user.fit_transform(df["puuid"].values)
+    le_champion = LabelEncoder()
+    df["champ_id"] = le_champion.fit_transform(df["orig_champ_id"].values)
+    return df
 
 
 if __name__ == "__main__":
