@@ -1,0 +1,91 @@
+import json
+import os
+from typing import Optional
+
+import requests
+
+from riot_api_helper import RiotApiHelper
+
+PROJECT_ROOT = os.getenv("PROJECT_ROOT")
+
+
+class MapHelper:
+    """Simple class to assist and store various mappings."""
+
+    def __init__(self):
+        """Initializes Riot API helper class."""
+        self.riot_api_helper = RiotApiHelper()
+
+    def get_champ_id_mapping(self, version="15.7.1") -> Optional[dict]:
+        """
+        Grabs the champion mapping from Riot.
+
+        Args:
+            version (str, optional): Version of the data. Defaults to "15.7.1".
+
+        Returns:
+            Optional[dict]: Returns the entire mapping if available.
+        """
+        url = f"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/champion.json"
+        file_path = os.path.join(PROJECT_ROOT, "src/mapping_data/champ_id_mapping.json")
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                return json.load(f)
+
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(
+                file_path,
+                "wb",
+            ) as f:
+                f.write(response.content)
+                print("Champ_id map downloaded successfully.")
+            with open(file_path, "rb") as f:
+                return json.load(f)
+        else:
+            print("Failed to retrieve the file. Status code:", response.status_code)
+            return None
+
+    def get_champ_id_to_name(self) -> Optional[dict]:
+        """
+        Gets only the champion to champ_id mapping, filtering out extraneous info.
+
+        Returns:
+            Optional[dict]: Champion to champ_id mapping.
+        """
+        champ_id_json = self.get_champ_id_mapping()
+        champ_id_to_name = {}
+        for _, champ_info in champ_id_json["data"].items():
+            champ_id_to_name[champ_info["key"]] = champ_info["id"]
+        return champ_id_to_name
+
+    def get_puuid_mapping(self) -> int:
+        """
+        Prompts user for summoner info. If not in json, grabs info and dumps to mapping json. Then returns puuid.
+
+        Returns:
+            int: Puuid for summoner.
+        """
+        map_path = os.path.join(
+            PROJECT_ROOT, "src/mapping_data/summoner_puuid_mapping.json"
+        )
+        summoner_id = input("INPUT YOUR SUMMONER NAME AND TAG (ABC#NA1):")
+        if not os.path.exists(map_path):
+            print("Mapping does not exist. Generating...")
+            puuid = self.riot_api_helper.get_puuid_from_summoner_id(summoner_id)
+            summoner_puuid_dict = {summoner_id: puuid}
+            with open(map_path, "w") as f:
+                json.dump(summoner_puuid_dict, f, indent=2)
+            print("Successfully generated json.")
+        else:
+            with open(map_path, "r") as f:
+                summoner_puuid_dict = json.load(f)
+            if summoner_id in summoner_puuid_dict:
+                puuid = summoner_puuid_dict.get(summoner_id)
+            else:
+                puuid = self.riot_api_helper.get_puuid_from_summoner_id(summoner_id)
+                summoner_puuid_dict[summoner_id] = puuid
+                with open(map_path, "w") as f:
+                    json.dump(summoner_puuid_dict, f, indent=2)
+                print("Successfully added mapping.")
+        return puuid
