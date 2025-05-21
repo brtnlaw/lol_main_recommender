@@ -29,10 +29,16 @@ class RiotApiHelper:
         """
         url = f"https://{self.region}.api.riotgames.com/lol/league/v4/challengerleagues/by-queue/{queue}"
         res = requests.get(url, headers=self.headers)
-        data = res.json()
-        entries = data.get("entries", [])
-        entries = sorted(entries, key=lambda x: x["leaguePoints"], reverse=True)[:ct]
-        return [entry["puuid"] for entry in entries]
+        if res.status_code == 200:
+            data = res.json()
+            entries = data.get("entries", [])
+            entries = sorted(entries, key=lambda x: x["leaguePoints"], reverse=True)[
+                :ct
+            ]
+            return [entry["puuid"] for entry in entries]
+        else:
+            print(f"Error fetching data: {res.status_code} - {res.text}")
+            return []
 
     def get_player_matches(self, puuid: str, ct: int = 100) -> List[str]:
         """
@@ -47,7 +53,11 @@ class RiotApiHelper:
         """
         url = f"https://{self.match_region}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={ct}"
         res = requests.get(url, headers=self.headers)
-        return res.json()
+        if res.status_code == 200:
+            return res.json()
+        else:
+            print(f"Error fetching data: {res.status_code} - {res.text}")
+            return None
 
     def get_match_info(self, match_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -61,7 +71,11 @@ class RiotApiHelper:
         """
         url = f"https://{self.match_region}.api.riotgames.com/lol/match/v5/matches/{match_id}"
         res = requests.get(url, headers=self.headers)
-        return res.json()
+        if res.status_code == 200:
+            return res.json()
+        else:
+            print(f"Error fetching data: {res.status_code} - {res.text}")
+            return None
 
     def get_puuid_from_summoner_id(self, summoner_id: str) -> int:
         """
@@ -75,10 +89,10 @@ class RiotApiHelper:
         """
         game_name, tag_line = summoner_id.split("#")
         url = f"https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
-        response = requests.get(url, headers=self.headers)
-        if response.status_code == 200:
-            puuid = response.json()["puuid"]
+        res = requests.get(url, headers=self.headers)
+        if res.status_code == 200:
+            puuid = res.json()["puuid"]
             return puuid
         else:
-            print(f"Error fetching data: {response.status_code} - {response.text}")
+            print(f"Error fetching data: {res.status_code} - {res.text}")
             return 0

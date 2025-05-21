@@ -4,15 +4,13 @@ import os
 import pickle as pkl
 import time
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Tuple
 
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
 from map_helper import MapHelper
 from riot_api_helper import RiotApiHelper
-
-PROJECT_ROOT = os.getenv("PROJECT_ROOT")
 
 
 class SummonerData:
@@ -21,6 +19,7 @@ class SummonerData:
     def __init__(self):
         """Initializes an API Wrapper to ping Riot's API."""
         self.riot_api_helper = RiotApiHelper()
+        self.project_root = os.getenv("PROJECT_ROOT")
 
     def dump_matches_for_puuid(self, puuid: str, ct: int = 100) -> None:
         """
@@ -28,10 +27,10 @@ class SummonerData:
 
         Args:
             puuid (str): Puuid of interest.
-            ct (int, optional): Number of matches, needs to be uniform. Defaults to 100.
+            ct (int, optional): Number of matches. Defaults to 100.
         """
         file_path = os.path.join(
-            PROJECT_ROOT,
+            self.project_root,
             f"src/summoner_data/{puuid}.json",
         )
         if os.path.exists(file_path):
@@ -39,13 +38,12 @@ class SummonerData:
         match_data = []
         print(f"Loading data for puuid: {puuid}")
         match_ids = self.riot_api_helper.get_player_matches(puuid, ct)
-        print(len(match_ids))
         # Each json is to have 100 games by default
         for i in range(len(match_ids)):
             match_id = match_ids[i]
             print(f"Match {i} loaded, id: {match_id}...")
             match_data.append(self.riot_api_helper.get_match_info(match_id))
-            time.sleep(1)
+            time.sleep(0.05)
         with open(file_path, "w") as f:
             json.dump(match_data, f, indent=2)
         print(f"Successfully saved data for puuid: {puuid}")
@@ -60,14 +58,59 @@ class SummonerData:
         puuids = self.riot_api_helper.get_challenger_puuids()
         for puuid in puuids:
             file_path = os.path.join(
-                PROJECT_ROOT,
+                self.project_root,
                 f"src/summoner_data/{puuid}.json",
             )
             if os.path.exists(file_path):
+                print(f"Already have data for puuid {puuid}... Skipping...")
                 continue
             self.dump_matches_for_puuid(puuid, ct)
 
-    def aggregate_json(self, rewrite: bool = False) -> dict:
+    def load_pkl_from_json(self, puuid: str, overwrite=False):
+        pkl_path = os.path.join(
+            self.project_root,
+            f"src/summoner_data_pkl/{puuid}.json",
+        )
+        if os.path.exists(pkl_path) and not overwrite:
+            with open(pkl_path, "rb") as f:
+                return pkl.load(f)
+        else:
+            json_path = os.path.join(
+                self.project_root,
+                f"src/summoner_data/{puuid}.json",
+            )
+            with open(json_path, "r") as f:
+                match_data = json.load(f)
+
+            player_dict = defaultdict(int)
+            for match in match_data:
+                try:
+                    participants = match.get("info", {}).get("participants", [])
+                except:
+                    continue
+                for participant in participants:
+                    if participant.get("puuid") == puuid:
+                        # Store information to get rating
+                        champion_name = participant.get("championName")
+                        win = participant.get("win")
+                        kills = participant.get("kills")
+                        deaths = participant.get("deaths")
+                        assists = participant.get("assists")
+
+                        player_dict[champion_name] += 1
+                        player_dict[f"{champion_name}_kills"] += kills
+                        player_dict[f"{champion_name}_assists"] += assists
+                        player_dict[f"{champion_name}_deaths"] += deaths
+                        if win:
+                            player_dict[f"{champion_name}_wins"] += 1
+            puuid_dict = {puuid: player_dict}
+            # Keep in dictionary form as will have to reconstruct anyways
+            with open(pkl_path, "wb") as f:
+                pkl.dump(dict(puuid_dict), f)
+            print(f"Successfully pickled json for puuid: {puuid}")
+            return puuid_dict
+
+    def aggregate_json(self, overwrite: bool = False) -> dict:
         """
         Using all the jsons, constructs a nested dictionary of champion data per puuid. If pkl exists, simply loads.
 
@@ -77,47 +120,26 @@ class SummonerData:
         Returns:
             dict: Nested dictionary of champion data per puuid.
         """
-        pkl_path = os.path.join(PROJECT_ROOT, "src/champion_data/raw_data.pkl")
-        if rewrite == False and os.path.exists(pkl_path):
+        pkl_path = os.path.join(self.project_root, "src/champion_data/raw_data.pkl")
+        if os.path.exists(pkl_path) and not overwrite:
             with open(pkl_path, "rb") as f:
                 return pkl.load(f)
 
-        print("Re-aggregating json...")
-        json_folder_path = os.path.join(PROJECT_ROOT, "src/summoner_data/")
+        else:
+            print("Re-aggregating json...")
+            json_folder_path = os.path.join(self.project_root, "src/summoner_data/")
 
-        # {player_id: {champion_id: count}}
-        player_champions = defaultdict(lambda: defaultdict(int))
-        for json_file in os.listdir(json_folder_path):
-            puuid = json_file.split(".json")[0]
-            # Load json for puuid
-            with open(os.path.join(json_folder_path, json_file), "r") as f:
-                match_data = json.load(f)
+            combined_puuid_dict = {}
+            for json_file in os.listdir(json_folder_path):
+                puuid = json_file.split(".json")[0]
+                # Note that overwriting the aggregate json is not the same as overwriting the combined dict
+                combined_puuid_dict.update(self.load_pkl_from_json(puuid))
+            with open(pkl_path, "wb") as f:
+                pkl.dump(dict(combined_puuid_dict), f)
+            print(f"Successfully pickled combined puuid_dict: {puuid}")
+        return combined_puuid_dict
 
-            # Get necessary info from match data
-            for match in match_data:
-                participants = match.get("info", {}).get("participants", [])
-                for participant in participants:
-                    if participant.get("puuid") == puuid:
-                        # Store information to get rating
-                        champion_id = participant.get("championId")
-                        win = participant.get("win")
-                        kills = participant.get("kills")
-                        deaths = participant.get("deaths")
-                        assists = participant.get("assists")
-
-                        player_champions[puuid][champion_id] += 1
-                        player_champions[puuid][f"{champion_id}_kills"] += kills
-                        player_champions[puuid][f"{champion_id}_assists"] += deaths
-                        player_champions[puuid][f"{champion_id}_deaths"] += assists
-                        if win == 1:
-                            player_champions[puuid][f"{champion_id}_wins"] += 1
-
-        # Write to json
-        with open(pkl_path, "wb") as f:
-            pkl.dump(dict(player_champions), f)
-        return dict(player_champions)
-
-    def load_rating(self, rewrite: bool = False) -> pd.DataFrame:
+    def load_rating(self, overwrite: bool = False) -> pd.DataFrame:
         """
         Loads the rating DataFrame with puuid, champion, and a proprietary rating system.
 
@@ -127,43 +149,48 @@ class SummonerData:
         Returns:
             pd.DataFrame: Rating DataFrame.
         """
-        pkl_path = os.path.join(PROJECT_ROOT, "src/champion_data/rating_data.pkl")
-        if rewrite == False and os.path.exists(pkl_path):
+        pkl_path = os.path.join(self.project_root, "src/champion_data/rating_data.pkl")
+        if os.path.exists(pkl_path) and not overwrite:
             with open(pkl_path, "rb") as f:
                 return pkl.load(f)
 
-        print("Loading new ratings...")
-        player_champions = self.aggregate_json(rewrite)
+        else:
+            print("Loading new ratings...")
+            # Note that overwriting the ratings_df is not the same as overwriting the aggregate json
+            player_champions = self.aggregate_json()
 
-        player_champion_stats = defaultdict(lambda: defaultdict(int))
-        for puuid, champ_data in player_champions.items():
-            for champion_id, count in champ_data.items():
-                # Searches for the id key to get stats
-                if isinstance(champion_id, int):
-                    kills = player_champions[puuid][f"{champion_id}_kills"]
-                    assists = player_champions[puuid][f"{champion_id}_assists"]
-                    deaths = player_champions[puuid][f"{champion_id}_deaths"]
-                    wins = player_champions[puuid].get(f"{champion_id}_wins", 0)
-                    win_pct = (wins / count) if count > 0 else 0
-                    kda = (kills + assists) / (deaths if deaths != 0 else 1)
+            player_champion_stats = defaultdict(lambda: defaultdict(int))
+            for puuid, champ_data in player_champions.items():
+                for champion_name, count in champ_data.items():
+                    # Searches for the champion name to get stats
+                    print(champion_name)
+                    if "_" not in champion_name:
+                        kills = player_champions[puuid][f"{champion_name}_kills"]
+                        assists = player_champions[puuid][f"{champion_name}_assists"]
+                        deaths = player_champions[puuid][f"{champion_name}_deaths"]
+                        wins = player_champions[puuid].get(f"{champion_name}_wins", 0)
+                        win_pct = (wins / count) if count > 0 else 0
+                        kda = (kills + assists) / (deaths if deaths != 0 else 1)
 
-                    # Scale the win % to within 0.4-0.7 and have a logarithmic scale for KDA, capped above by 6
-                    scaled_win_pct = (min(max(win_pct, 0.4), 0.7) - 0.4) / (0.7 - 0.4)
-                    scaled_kda = math.log(min(kda, 6) + 1) / math.log(7)
+                        # Scale the win % to within 0.4-0.7 and have a logarithmic scale for KDA, capped above by 6
+                        scaled_win_pct = (min(max(win_pct, 0.4), 0.7) - 0.4) / (
+                            0.7 - 0.4
+                        )
+                        scaled_kda = math.log(min(kda, 6) + 1) / math.log(7)
 
-                    # Normalizes a performance and enthusiasm score to attain a rating from 1-10
-                    performance_score = math.log(count + 1) / math.log(101)
-                    enthusiasm_score = scaled_win_pct * scaled_kda
-                    rating = 10 * performance_score * enthusiasm_score
-                    player_champion_stats[puuid][champion_id] = rating
+                        # Normalizes a performance and enthusiasm score to attain a rating from 1-10, irrelevant of games played total
+                        performance_score = math.log(count + 1) / math.log(101)
+                        enthusiasm_score = scaled_win_pct * scaled_kda
+                        rating = 10 * performance_score * enthusiasm_score
+                        player_champion_stats[puuid][champion_name] = rating
 
-        # If no games, assign 0
-        rating_df = pd.DataFrame(player_champion_stats).transpose().fillna(0)
+            # If no games, assign 0
+            rating_df = pd.DataFrame(player_champion_stats).transpose().fillna(0)
 
-        # Writes to pkl file
-        with open(pkl_path, "wb") as f:
-            pkl.dump(rating_df, f)
-        return rating_df
+            # Writes to pkl file
+            with open(pkl_path, "wb") as f:
+                pkl.dump(rating_df, f)
+            return rating_df
 
     def load_clean_df_encoders(
         self, rewrite: bool = False
@@ -172,7 +199,7 @@ class SummonerData:
         Cleans up the rating DataFrame and encodes.
 
         Args:
-            rewrite (bool, optional): Whether or not to write over jsons. Defaults to False.
+            rewrite (bool, optional): Whether or not to write over the rating json. Defaults to False.
 
         Returns:
             Tuple[pd.DataFrame, LabelEncoder, LabelEncoder]: Cleaned DataFrame, user encoder, champion encoder.
@@ -180,14 +207,19 @@ class SummonerData:
         df = self.load_rating(rewrite)
         df.index.name = "puuid"
         df.reset_index(inplace=True)
-        df = pd.melt(
-            df, id_vars=["puuid"], var_name="orig_champ_id", value_name="rating"
-        )
+        df = pd.melt(df, id_vars=["puuid"], var_name="champ_name", value_name="rating")
         map_helper = MapHelper()
         champ_map = map_helper.get_champ_id_to_name()
         df["champion"] = df["orig_champ_id"].apply(lambda x: champ_map.get(str(x)))
         le_user = LabelEncoder()
         df["user_id"] = le_user.fit_transform(df["puuid"].values)
         le_champion = LabelEncoder()
-        df["champ_id"] = le_champion.fit_transform(df["orig_champ_id"].values)
+        df["champ_id"] = le_champion.fit_transform(df["champ_name"].values)
         return df, le_user, le_champion
+
+
+if __name__ == "__main__":
+    """To generate further data"""
+    # python src/summoner_data.py
+    sd = SummonerData()
+    sd.save_challenger_data()

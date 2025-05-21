@@ -57,11 +57,7 @@ class Recommender:
         top_indices_list = top_indices.tolist()
 
         # Load champ order
-        champ_map = map_helper.get_champ_id_to_name()
-        champ_order = [
-            champ_map.get(str(x))
-            for x in le_champion.inverse_transform(range(num_champions))
-        ]
+        champ_order = [x for x in le_champion.inverse_transform(range(num_champions))]
         for idx in top_indices_list:
             print(f"WE PRESCRIBE THAT YOU PLAY: {champ_order[idx]}")
 

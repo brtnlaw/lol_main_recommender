@@ -46,19 +46,6 @@ class MapHelper:
             print("Failed to retrieve the file. Status code:", response.status_code)
             return None
 
-    def get_champ_id_to_name(self) -> Optional[dict]:
-        """
-        Gets only the champion to champ_id mapping, filtering out extraneous info.
-
-        Returns:
-            Optional[dict]: Champion to champ_id mapping.
-        """
-        champ_id_json = self.get_champ_id_mapping()
-        champ_id_to_name = {}
-        for _, champ_info in champ_id_json["data"].items():
-            champ_id_to_name[champ_info["key"]] = champ_info["id"]
-        return champ_id_to_name
-
     def get_puuid_mapping(self) -> int:
         """
         Prompts user for summoner info. If not in json, grabs info and dumps to mapping json. Then returns puuid.
