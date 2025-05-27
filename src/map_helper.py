@@ -16,6 +16,7 @@ class MapHelper:
         """Initializes Riot API helper class."""
         self.riot_api_helper = RiotApiHelper()
 
+    # NOTE: For acquiring champion metadata
     def get_champ_id_mapping(self, version="15.7.1") -> Optional[dict]:
         """
         Grabs the champion mapping from Riot.
@@ -27,7 +28,7 @@ class MapHelper:
             Optional[dict]: Returns the entire mapping if available.
         """
         url = f"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/champion.json"
-        file_path = os.path.join(PROJECT_ROOT, "src/mapping_data/champ_id_mapping.json")
+        file_path = os.path.join(PROJECT_ROOT, "src/cache/champ_id_mapping.json")
         if os.path.exists(file_path):
             with open(file_path, "rb") as f:
                 return json.load(f)
@@ -53,9 +54,7 @@ class MapHelper:
         Returns:
             int: Puuid for summoner.
         """
-        map_path = os.path.join(
-            PROJECT_ROOT, "src/mapping_data/summoner_puuid_mapping.json"
-        )
+        map_path = os.path.join(PROJECT_ROOT, "src/cache/summoner_puuid_mapping.json")
         summoner_id = input("INPUT YOUR SUMMONER NAME AND TAG (ABC#NA1):")
         if not os.path.exists(map_path):
             print("Mapping does not exist. Generating...")

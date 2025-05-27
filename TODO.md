@@ -1,0 +1,3 @@
+- [ ] Content-based filtering
+- [ ] Hybrid recommendation systems
+- [ ] Two Tower

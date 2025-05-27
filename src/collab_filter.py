@@ -25,16 +25,16 @@ class ChampionsDataset(Dataset):
 
 
 class DotProduct(nn.Module):
-    """Model that dot products the summoner and champion factors"""
+    """Model that dot products the summoner and champion factors. Matrix approach of collaborative filtering."""
 
     def __init__(self, num_summoners, num_champions, num_factors):
-        """Module with summoner and champion factors as Embedding objects."""
+        """Module with summoner and champion factors as Embedding objects with learned factors per summoner/champion."""
         super().__init__()
         self.summoner_factors = nn.Embedding(num_summoners, num_factors)
         self.champion_factors = nn.Embedding(num_champions, num_factors)
 
     def forward(self, summoner_ids, champ_ids):
-        """Simply takes the dot product at each forward step."""
+        """Simply takes the dot product at each forward step to get a predicted rating."""
         summoner_embedded = self.summoner_factors(summoner_ids)
         champion_embedded = self.champion_factors(champ_ids)
         return (summoner_embedded * champion_embedded).sum(dim=1)
@@ -85,6 +85,7 @@ def train_and_evaluate_model(
             # Zero out the gradient, make predictions, backward propagate the losses, and step forward with the optimizer
             optimizer.zero_grad()
             preds = model(user_ids, champ_ids)
+            # Criterion betweens the forward run and the true rating
             loss = criterion(preds, ratings)
             loss.backward()
             optimizer.step()
