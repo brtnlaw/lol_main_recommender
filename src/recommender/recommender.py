@@ -1,13 +1,13 @@
 import os
 
 import torch
+from collab_filter import ChampionsDataset, DotProduct, train_and_evaluate_model
+from map_helper import MapHelper
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
-from collab_filter import ChampionsDataset, DotProduct, train_and_evaluate_model
-from map_helper import MapHelper
-from summoner_data_loader import SummonerDataLoader
-from summoner_data_processor import SummonerDataProcessor
+from .data_loaders.summoner_data_loader import SummonerDataLoader
+from .data_processors.summoner_data_processor import SummonerDataProcessor
 
 PROJECT_ROOT = os.getenv("PROJECT_ROOT")
 
@@ -38,6 +38,7 @@ class Recommender:
             overwrite, overwrite
         )
 
+        # TODO: move to collab_filter.py
         # Train a model
         train_df, test_df = train_test_split(df, test_size=0.2)
         train_dataset = ChampionsDataset(train_df)

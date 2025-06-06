@@ -2,20 +2,19 @@ import math
 import os
 import pickle as pkl
 from collections import defaultdict
-from typing import Tuple
 
 import pandas as pd
-from sklearn.calibration import LabelEncoder
 
-from summoner_data_loader import SummonerDataLoader
+from ..data_loaders.summoner_match_loader import SummonerMatchLoader
+from ..data_processors.summoner_data_processor import SummonerDataProcessor
 
 
-class SummonerDataProcessor:
+class SummonerMatchProcessor(SummonerDataProcessor):
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):
-        self.sdl = SummonerDataLoader()
-        self.project_root = os.getenv("PROJECT_ROOT")
+        super().__init__()
+        self.sdl = SummonerMatchLoader()
 
     def aggregate_summoner_pkls(self, overwrite_aggregate: bool = False) -> dict:
         """
@@ -102,31 +101,3 @@ class SummonerDataProcessor:
             with open(pkl_path, "wb") as f:
                 pkl.dump(rating_df, f)
             return rating_df
-
-    def load_encoded_ratings(
-        self, overwrite_rating: bool = False, overwrite_aggregate: bool = False
-    ) -> Tuple[pd.DataFrame, LabelEncoder, LabelEncoder]:
-        """
-        Cleans up the rating DataFrame and encodes.
-
-        Args:
-            overwrite_rating (bool, optional): Whether or not to overwrite rating pkl. Defaults to False.
-            overwrite_aggregate (bool, optional): Whether or not to overwrite the aggregate dict. Defaults to False.
-
-        Returns:
-            Tuple[pd.DataFrame, LabelEncoder, LabelEncoder]: Cleaned DataFrame, user encoder, champion encoder.
-        """
-        rating_df = self.load_rating(overwrite_rating, overwrite_aggregate)
-        rating_df.index.name = "puuid"
-        rating_df.reset_index(inplace=True)
-        rating_df = pd.melt(
-            rating_df, id_vars=["puuid"], var_name="champ_name", value_name="rating"
-        )
-        rating_df.rename(columns={"champ_name": "champion"})
-        le_user = LabelEncoder()
-        rating_df["user_id"] = le_user.fit_transform(rating_df["puuid"].values)
-        le_champion = LabelEncoder()
-        rating_df["champ_id"] = le_champion.fit_transform(
-            rating_df["champ_name"].values
-        )
-        return rating_df, le_user, le_champion
