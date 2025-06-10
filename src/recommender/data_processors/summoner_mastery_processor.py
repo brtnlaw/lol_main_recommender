@@ -4,10 +4,10 @@ import pickle as pkl
 from collections import defaultdict
 
 import pandas as pd
-from map_helper import MapHelper
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..data_processors.summoner_data_processor import SummonerDataProcessor
+from ..map_helper import MapHelper
 
 
 class SummonerMasteryProcessor(SummonerDataProcessor):
@@ -29,7 +29,7 @@ class SummonerMasteryProcessor(SummonerDataProcessor):
             dict: Nested dictionary of champion data per puuid.
         """
         pkl_path = os.path.join(
-            self.project_root, "src/cache/aggregate_mastery_data.pkl"
+            self.project_root, "data/cache/aggregate_mastery_data.pkl"
         )
         if os.path.exists(pkl_path) and not overwrite_aggregate:
             with open(pkl_path, "rb") as f:
@@ -69,7 +69,7 @@ class SummonerMasteryProcessor(SummonerDataProcessor):
             pd.DataFrame: Rating DataFrame.
         """
 
-        pkl_path = os.path.join(self.project_root, "src/cache/mastery_rating_data.pkl")
+        pkl_path = os.path.join(self.project_root, "data/cache/mastery_rating_data.pkl")
         if os.path.exists(pkl_path) and not overwrite_rating:
             with open(pkl_path, "rb") as f:
                 return pkl.load(f)

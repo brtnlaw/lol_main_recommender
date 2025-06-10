@@ -28,7 +28,7 @@ class MapHelper:
             Optional[dict]: Returns the entire mapping if available.
         """
         url = f"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/champion.json"
-        file_path = os.path.join(PROJECT_ROOT, "src/cache/champ_id_mapping.json")
+        file_path = os.path.join(PROJECT_ROOT, "data/cache/champ_id_mapping.json")
         if os.path.exists(file_path):
             with open(file_path, "rb") as f:
                 return json.load(f)
@@ -69,9 +69,9 @@ class MapHelper:
         Returns:
             int: Puuid for summoner.
         """
-        file_path = os.path.join(PROJECT_ROOT, "src/cache/summoner_puuid_mapping.json")
+        file_path = os.path.join(PROJECT_ROOT, "data/cache/summoner_puuid_mapping.json")
         if not summoner_id:
-            summoner_id = input("INPUT YOUR SUMMONER NAME AND TAG (ABC#NA1):")
+            summoner_id = input("Input your summoner name and tag (Faker#NA1): \n")
         if not os.path.exists(file_path):
             print("Mapping does not exist. Generating...")
             puuid = self.riot_api_helper.get_puuid_from_summoner_id(summoner_id)

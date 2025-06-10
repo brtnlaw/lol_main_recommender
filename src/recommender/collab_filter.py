@@ -1,7 +1,8 @@
+import time
+
 import torch
 import torch.nn as nn
 from sklearn.metrics import mean_squared_error
-from torch import optim
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -10,18 +11,17 @@ class ChampionsDataset(Dataset):
 
     def __init__(self, df):
         """Dummy for inheritance."""
-        self.df = df
+        self.puuids = torch.tensor(df["user_id"].values, dtype=torch.long)
+        self.champions = torch.tensor(df["champ_id"].values, dtype=torch.long)
+        self.ratings = torch.tensor(df["rating"].values, dtype=torch.float)
 
     def __len__(self):
         """Dummy for inheritance."""
-        return len(self.df)
+        return len(self.puuids)
 
     def __getitem__(self, idx):
         """Gets puuid, champion, and rating."""
-        puuid = torch.tensor(self.df.iloc[idx]["user_id"], dtype=torch.long)
-        champion = torch.tensor(self.df.iloc[idx]["champ_id"], dtype=torch.long)
-        rating = torch.tensor(self.df.iloc[idx]["rating"], dtype=torch.float)
-        return puuid, champion, rating
+        return self.puuids[idx], self.champions[idx], self.ratings[idx]
 
 
 class DotProduct(nn.Module):
@@ -75,7 +75,8 @@ def train_and_evaluate_model(
         test_loader (DataLoader): DataLoader of test data.
         epochs (int, optional): Number of epochs. Defaults to 50.
     """
-    optimizer = optim.SGD(model.parameters())
+    start_time = time.time()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
     criterion = nn.MSELoss()
     for epoch in range(epochs):
         # Training mode and reset loss
@@ -92,3 +93,4 @@ def train_and_evaluate_model(
             total_loss += loss.item()
         print(f"Epoch {epoch+1}, Loss: {total_loss / len(train_loader)}")
         evaluate_model(model, test_loader)
+    print(f"Model training completed in {(time.time() - start_time)} seconds.")

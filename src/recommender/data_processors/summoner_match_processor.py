@@ -27,7 +27,7 @@ class SummonerMatchProcessor(SummonerDataProcessor):
             dict: Nested dictionary of champion data per puuid.
         """
         pkl_path = os.path.join(
-            self.project_root, "src/cache/aggregate_summoner_data.pkl"
+            self.project_root, "data/cache/aggregate_summoner_data.pkl"
         )
         if os.path.exists(pkl_path) and not overwrite_aggregate:
             with open(pkl_path, "rb") as f:
@@ -35,7 +35,7 @@ class SummonerMatchProcessor(SummonerDataProcessor):
 
         else:
             print("Re-aggregating summoner data...")
-            pkl_folder_path = os.path.join(self.project_root, "src/summoner_pkls/")
+            pkl_folder_path = self.sdl.json_folder_path
 
             combined_puuid_dict = {}
             for pkl_file in os.listdir(pkl_folder_path):
@@ -59,7 +59,7 @@ class SummonerMatchProcessor(SummonerDataProcessor):
             pd.DataFrame: Rating DataFrame.
         """
 
-        pkl_path = os.path.join(self.project_root, "src/cache/rating_data.pkl")
+        pkl_path = os.path.join(self.project_root, "data/cache/rating_data.pkl")
         if os.path.exists(pkl_path) and not overwrite_rating:
             with open(pkl_path, "rb") as f:
                 return pkl.load(f)
