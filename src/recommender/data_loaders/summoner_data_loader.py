@@ -3,7 +3,7 @@ import os
 import pickle as pkl
 from abc import abstractmethod
 
-from ..riot_api_helper import RiotApiHelper
+from ..utils.riot_api_helper import RiotApiHelper
 
 
 class SummonerDataLoader:

@@ -7,7 +7,7 @@ import pandas as pd
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..data_processors.summoner_data_processor import SummonerDataProcessor
-from ..map_helper import MapHelper
+from ..utils.map_helper import MapHelper
 
 
 class SummonerMasteryProcessor(SummonerDataProcessor):
@@ -15,8 +15,8 @@ class SummonerMasteryProcessor(SummonerDataProcessor):
 
     def __init__(self):
         super().__init__()
-        self.sml = SummonerMasteryLoader()
-        self.mh = MapHelper()
+        self.summoner_mastery_loader = SummonerMasteryLoader()
+        self.map_helper = MapHelper()
 
     def aggregate_summoner_pkls(self, overwrite_aggregate: bool = False) -> dict:
         """
@@ -37,15 +37,15 @@ class SummonerMasteryProcessor(SummonerDataProcessor):
 
         else:
             print("Re-aggregating summoner mastery data...")
-            pkl_folder_path = self.sml.json_folder_path
-            id_champ_map = self.mh.get_id_champ_map()
+            pkl_folder_path = self.summoner_mastery_loader.json_folder_path
+            id_champ_map = self.map_helper.get_id_champ_map()
 
             combined_puuid_dict = {}
             for pkl_file in os.listdir(pkl_folder_path):
                 puuid = pkl_file.split(".pkl")[0]
-                old_puuid_dict = self.sml.load_dict_from_pkl(puuid)
+                old_puuid_dict = self.summoner_mastery_loader.load_dict_from_pkl(puuid)
                 new_puuid_dict = {}
-                id_champ_map = self.mh.get_id_champ_map()
+                id_champ_map = self.map_helper.get_id_champ_map()
                 for key, value in old_puuid_dict.items():
                     champ_id_str, suffix = key.split("_", 1)
                     champ_name = id_champ_map.get(int(champ_id_str), champ_id_str)
