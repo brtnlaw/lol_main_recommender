@@ -3,10 +3,10 @@ import pickle as pkl
 import time
 from collections import defaultdict
 
-from .summoner_data_loader import SummonerDataLoader
+from .base_data_loader import BaseDataLoader
 
 
-class SummonerMatchLoader(SummonerDataLoader):
+class SummonerMatchLoader(BaseDataLoader):
     """Class for generating user data with champions played."""
 
     def __init__(self):

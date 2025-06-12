@@ -6,11 +6,11 @@ from collections import defaultdict
 import pandas as pd
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
-from ..data_processors.summoner_data_processor import SummonerDataProcessor
 from ..utils.map_helper import MapHelper
+from .base_summoner_processor import BaseSummonerProcessor
 
 
-class SummonerMasteryProcessor(SummonerDataProcessor):
+class SummonerMasteryProcessor(BaseSummonerProcessor):
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):

@@ -3,10 +3,10 @@ import pickle as pkl
 import time
 from collections import defaultdict
 
-from .summoner_data_loader import SummonerDataLoader
+from .base_data_loader import BaseDataLoader
 
 
-class SummonerMasteryLoader(SummonerDataLoader):
+class SummonerMasteryLoader(BaseDataLoader):
     """Class for generating user mastery data."""
 
     def __init__(self):

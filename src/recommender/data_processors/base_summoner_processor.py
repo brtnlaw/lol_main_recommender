@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.calibration import LabelEncoder
 
 
-class SummonerDataProcessor:
+class BaseSummonerProcessor:
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):

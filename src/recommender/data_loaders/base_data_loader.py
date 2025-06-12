@@ -6,7 +6,7 @@ from abc import abstractmethod
 from ..utils.riot_api_helper import RiotApiHelper
 
 
-class SummonerDataLoader:
+class BaseDataLoader:
     """Class for generating user data with champions played."""
 
     def __init__(self, puuid_json_path, json_folder_path):

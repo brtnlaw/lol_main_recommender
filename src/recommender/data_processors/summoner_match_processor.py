@@ -6,10 +6,10 @@ from collections import defaultdict
 import pandas as pd
 
 from ..data_loaders.summoner_match_loader import SummonerMatchLoader
-from ..data_processors.summoner_data_processor import SummonerDataProcessor
+from .base_summoner_processor import BaseSummonerProcessor
 
 
-class SummonerMatchProcessor(SummonerDataProcessor):
+class SummonerMatchProcessor(BaseSummonerProcessor):
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):

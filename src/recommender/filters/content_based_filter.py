@@ -1,4 +1,3 @@
-import os
 from collections import defaultdict
 
 import numpy as np
@@ -7,20 +6,26 @@ import torch
 from sklearn.preprocessing import MinMaxScaler, MultiLabelBinarizer, OneHotEncoder
 from torch.nn.functional import cosine_similarity
 
-from .data_loaders.summoner_mastery_loader import SummonerMasteryLoader
-from .utils.map_helper import MapHelper
+from .common import BaseRecommender
 
 
-class ContentBasedFilter:
+class ContentBasedFilter(BaseRecommender):
+    """Filter that recommends based on champion metadata."""
+
     def __init__(self):
-        self.project_root = os.getenv("PROJECT_ROOT")
-        self.summoner_mastery_loader = SummonerMasteryLoader()
-        self.map_helper = MapHelper()
+        """Loads metadata encoders."""
+        super().__init__()
         self.multi_label_binarizer = MultiLabelBinarizer()
         self.one_hot_encoder = OneHotEncoder(sparse_output=False)
         self.min_max_scaler = MinMaxScaler()
 
-    def get_champ_df(self):
+    def get_champ_df(self) -> pd.DataFrame:
+        """
+        Constructs DataFrame of champions and attributes.
+
+        Returns:
+            pd.DataFrame: Champion attribute DataFrame.
+        """
         metadata = self.map_helper.get_lolstaticdata_champ_id_mapping()
         champ_dict = defaultdict(dict)
 
@@ -82,7 +87,6 @@ class ContentBasedFilter:
             ],
             axis=1,
         )
-        print(champ_df)
         champ_df = pd.DataFrame(
             self.min_max_scaler.fit_transform(champ_df),
             columns=champ_df.columns,
@@ -90,7 +94,16 @@ class ContentBasedFilter:
         )
         return champ_df
 
-    def recommend_champions(self, puuid: str):
+    def recommend_champions(self, puuid: str) -> list[str]:
+        """
+        Recommends champions based on metadata and existing user play.
+
+        Args:
+            puuid (str): Puuid of interest.
+
+        Returns:
+            list[str]: Ordered list of recommended champions.
+        """
         champ_df = self.get_champ_df()
         summoner_dict = self.summoner_mastery_loader.load_dict_from_pkl(puuid)
         id_champ_map = self.map_helper.get_id_champ_map()
