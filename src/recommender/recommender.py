@@ -1,11 +1,10 @@
 import os
 
 import torch
-from sklearn.model_selection import train_test_split
 
 from .data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from .data_processors.summoner_mastery_processor import SummonerMasteryProcessor
-from .user_item_collab_filter import CollabFilter
+from .user_item_collab_filter import UserItemCollabFilter
 from .utils.map_helper import MapHelper
 
 
@@ -23,7 +22,7 @@ class Recommender:
         # Prompt in game name
         puuid = self.map_helper.get_puuid_mapping()
 
-        filter = CollabFilter()
+        filter = UserItemCollabFilter()
         predicted_ratings, le_champion = filter.recommend_champions(puuid)
 
         _, top_indices = torch.topk(predicted_ratings, k=3)

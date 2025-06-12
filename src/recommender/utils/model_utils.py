@@ -68,8 +68,10 @@ def train_and_evaluate_model(
     model: nn.Module,
     train_loader: DataLoader,
     test_loader: DataLoader,
+    optimizer: torch.optim.Optimizer = torch.optim.Adam,
     epochs: int = 20,
     lr: float = 0.05,
+    mastery_tensor=None,
 ):
     """
     Trains and evaluates a model for a given number of epochs.
@@ -81,7 +83,8 @@ def train_and_evaluate_model(
         epochs (int, optional): Number of epochs. Defaults to 20.
     """
     start_time = time.time()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = optimizer(model.parameters(), lr=lr)
+    # optimizer = AlternatingLeastSquares(model.parameters, mastery_tensor)
     criterion = nn.MSELoss()
     for epoch in range(epochs):
         # Training mode and reset loss

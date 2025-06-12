@@ -1,9 +1,11 @@
 import os
+import time
 
 import torch
 import torch.nn as nn
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 from .data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from .data_processors.summoner_mastery_processor import SummonerMasteryProcessor
@@ -42,6 +44,53 @@ class DotProduct(nn.Module):
         summoner_embedded = self.summoner_factors(summoner_ids)
         champion_embedded = self.champion_factors(champ_ids)
         return (summoner_embedded * champion_embedded).sum(dim=1)
+
+
+# TODO: If I want to implement this, I need to change the way that I load the data
+# right now, pytorch SGD is mini-batch gradient descent; so namely, it takes however large our batch is from DataLoader
+# It then adjusts the gradient based on wahtever minibatch you throw into it
+class AlternatingLeastSquares(torch.optim.Optimizer):
+    # Batch size needs to be the whole thing
+    def __init__(self, params, mastery_tensor):
+        super().__init__(params, defaults={})
+        self.alternating_idx = 0
+        # n summoners x m champions
+        self.mastery_tensor = mastery_tensor
+
+    def _solve_matrix(self, variable_factors, fixed_factors):
+        # should be n x k or m x k
+        update_tensor = torch.zeros_like(variable_factors)
+        k = fixed_factors.shape[1]
+        for i in range(len(variable_factors)):
+            if self.alternating_idx == 0:
+                # ith summoner ratings
+                rating_tensor = self.mastery_tensor[i, :]
+            else:
+                # ith champion ratings
+                rating_tensor = self.mastery_tensor[:, i]
+            sum_tensor = torch.zeros([k, k])
+            sum_r_tensor = torch.zeros(k)
+            for j in range(len(fixed_factors)):
+                # sum of y_iy_i^T + lambda I, lambda = 0
+                # (kx1)(kx1)^T = kxk
+                sum_tensor += torch.outer(fixed_factors[j], fixed_factors[j])
+                # sum of r_ij y_i
+                sum_r_tensor += rating_tensor[j] * fixed_factors[j]
+            # (kxk)(kx1) = (kx1)
+            update_tensor[i, :] = torch.matmul(torch.inverse(sum_tensor), sum_r_tensor)
+        return update_tensor
+
+    def step(self):
+        summoner_factors, champion_factors = self.param_groups[0]["params"]
+        if self.alternating_idx == 0:
+            summoner_factors.data = self._solve_matrix(
+                summoner_factors.data, champion_factors.data
+            )
+        else:
+            champion_factors.data = self._solve_matrix(
+                champion_factors.data, summoner_factors.data
+            )
+        self.alternating_idx = 1 - self.alternating_idx
 
 
 class UserItemCollabFilter:
@@ -116,6 +165,44 @@ class UserItemCollabFilter:
 
         champ_order = torch.argsort(predicted_ratings, descending=True)
         return list(le_champion.inverse_transform(champ_order.numpy()))
+
+
+def train_and_evaluate_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    test_loader: DataLoader,
+    epochs: int = 20,
+    lr: float = 0.05,
+    mastery_tensor=None,
+):
+    """
+    Trains and evaluates a model for a given number of epochs.
+
+    Args:
+        model (nn.Module): Model of interest.
+        train_loader (DataLoader): DataLoader of train data.
+        test_loader (DataLoader): DataLoader of test data.
+        epochs (int, optional): Number of epochs. Defaults to 20.
+    """
+    start_time = time.time()
+    optimizer = AlternatingLeastSquares(model.parameters(), mastery_tensor)
+    criterion = nn.MSELoss()
+    for epoch in range(epochs):
+        # Training mode and reset loss
+        model.train()
+        total_loss = 0
+        for user_ids, champ_ids, ratings in train_loader:
+            # Zero out the gradient, make predictions, backward propagate the losses, and step forward with the optimizer
+            optimizer.zero_grad()
+            preds = model(user_ids, champ_ids)
+            # Criterion betweens the forward run and the true rating
+            loss = criterion(preds, ratings)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print(f"Epoch {epoch+1}, Loss: {total_loss / len(train_loader)}")
+        # evaluate_model(model, test_loader)
+    print(f"Model training completed in {(time.time() - start_time)} seconds.")
 
 
 # maybe a memory based just for posterity
