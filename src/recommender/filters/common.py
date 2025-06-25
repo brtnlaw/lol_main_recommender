@@ -39,6 +39,24 @@ class BaseRecommender:
         self.map_helper = MapHelper()
 
     @abstractmethod
-    def recommend_champions(puuid: str, *args, **kwargs) -> list[str]:
-        """Takes in a puuid and returns an ordered list of champions."""
+    def get_predicted_ratings(self, puuid: str, *args, **kwargs) -> dict:
+        """GEts a rating to champion dictionary to determine what to recommend."""
         pass
+
+    @abstractmethod
+    def recommend_champions(self, puuid: str, *args, **kwargs) -> None:
+        """Takes in a puuid and returns an ordered list of champions."""
+        predicted_ratings_dict = self.get_predicted_ratings(puuid, *args, **kwargs)
+        ordered_champs = sorted(
+            enumerate(predicted_ratings_dict.keys()), key=lambda x: x[1], reverse=True
+        )
+        print("=================================")
+        for list_rank in range(1, 4):
+            print(
+                f"You should try playing {list_rank}: {predicted_ratings_dict[ordered_champs[list_rank-1][1]]}"
+            )
+        print("=================================")
+        for list_rank in range(1, 4):
+            print(
+                f"You should avoid playing {list_rank}: {predicted_ratings_dict[ordered_champs[-(list_rank)][1]]}"
+            )

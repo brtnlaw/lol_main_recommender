@@ -12,7 +12,10 @@ from .common import BaseRecommender, DotProduct
 
 
 class AlternatingLeastSquares(torch.optim.Optimizer):
-    """Optimizer class that computes ALS."""
+    """
+    Optimizer class that computes ALS.
+    https://stanford.edu/~rezab/classes/cme323/S15/notes/lec14.pdf for reference.
+    """
 
     def __init__(self, params, mastery_tensor):
         """Initializes the current alternating state as well as the tensor of ratings."""
@@ -52,7 +55,7 @@ class AlternatingLeastSquares(torch.optim.Optimizer):
                 # sum of (fixed_j)(fixed_j)^T + (lambda)(I), lambda = 0, (k x 1)(k x 1)^T = (k x k)
                 mat_sum_tensor += torch.outer(fixed_factors[j], fixed_factors[j])
                 # sum of mastery[i][j]* (fixed_j), a(k x 1)
-                sum_row_row_sum_tensortensor += row_tensor[j] * fixed_factors[j]
+                row_sum_tensor += row_tensor[j] * fixed_factors[j]
 
             # (k x k)(k x 1) = (k x 1)
             update_tensor[i, :] = torch.matmul(
@@ -103,8 +106,8 @@ class ALSCollabFilter(BaseRecommender):
         model: nn.Module,
         train_loader: DataLoader,
         test_loader: DataLoader,
-        epochs: int = 20,
-        mastery_tensor=None,
+        epochs: int = 10,
+        mastery_tensor: torch.tensor = None,
     ):
         """
         Trains and evaluates a model for a given number of epochs.
@@ -125,20 +128,19 @@ class ALSCollabFilter(BaseRecommender):
                 for user_ids, champ_ids, ratings in train_loader:
                     preds = model(user_ids, champ_ids)
                     loss = criterion(preds, ratings)
-                    loss.backward()
                     optimizer.step()
                     total_loss += loss.item()
             print(f"Epoch {epoch+1}, Loss: {total_loss / len(train_loader)}")
             self.evaluate_model(model, test_loader)
         print(f"Model training completed in {(time.time() - start_time)} seconds.")
 
-    def recommend_champions(
+    def get_predicted_ratings(
         self,
         puuid: str,
         test_size: float = 0.2,
         num_factors: int = 5,
-        epochs: int = 20,
-    ) -> list[str]:
+        epochs: int = 10,
+    ) -> dict:
         """
         Given a puuid, returns an ordered list of recommended champions.
 
@@ -149,7 +151,7 @@ class ALSCollabFilter(BaseRecommender):
             epochs (int, optional): Number of training epochs. Defaults to 20.
 
         Returns:
-            list[str]: List of champions.
+            dict: Rating to champion dict
         """
         overwrite = False
         puuid_path = os.path.join(
@@ -181,9 +183,16 @@ class ALSCollabFilter(BaseRecommender):
 
         num_summoners = len(df["puuid"].unique())
         num_champions = len(df["champ_id"].unique())
-
         model = DotProduct(num_summoners, num_champions, num_factors).to(self.device)
-        self.train_and_evaluate_model(model, train_loader, test_loader, epochs)
+
+        # We want a matrix with only values from train
+        mastery_tensor = torch.zeros([num_summoners, num_champions])
+        for user_ids, champ_ids, ratings in train_loader:
+            mastery_tensor[user_ids, champ_ids] = ratings
+
+        self.train_and_evaluate_model(
+            model, train_loader, test_loader, epochs, mastery_tensor
+        )
 
         # Get ratings for given user
         user_idx = le_user.transform([puuid])
@@ -192,4 +201,11 @@ class ALSCollabFilter(BaseRecommender):
         predicted_ratings = model(user_id, all_champions)
 
         champ_order = torch.argsort(predicted_ratings, descending=True)
-        return list(le_champion.inverse_transform(champ_order.numpy()))
+        # rating : champion
+        predicted_ratings_dict = {
+            predicted_ratings[champ.item()].item(): le_champion.inverse_transform(
+                [champ.item()]
+            )[0]
+            for champ in champ_order
+        }
+        return predicted_ratings_dict

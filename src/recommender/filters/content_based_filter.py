@@ -94,7 +94,7 @@ class ContentBasedFilter(BaseRecommender):
         )
         return champ_df
 
-    def recommend_champions(self, puuid: str) -> list[str]:
+    def get_predicted_ratings(self, puuid: str) -> dict:
         """
         Recommends champions based on metadata and existing user play.
 
@@ -102,7 +102,7 @@ class ContentBasedFilter(BaseRecommender):
             puuid (str): Puuid of interest.
 
         Returns:
-            list[str]: Ordered list of recommended champions.
+            dict: Rating to champion dict.
         """
         champ_df = self.get_champ_df()
         summoner_dict = self.summoner_mastery_loader.load_dict_from_pkl(puuid)
@@ -133,4 +133,8 @@ class ContentBasedFilter(BaseRecommender):
         )
         sim = cosine_similarity(user_tensor, champ_tensor)
         champ_order = torch.argsort(sim, descending=True)
-        return [champ_df.index[i.item()] for i in champ_order]
+        predicted_ratings_dict = {
+            sim[champ.item()].item(): champ_df.index[champ.item()]
+            for champ in champ_order
+        }
+        return predicted_ratings_dict

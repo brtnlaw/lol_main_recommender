@@ -80,7 +80,7 @@ class SGDCollabFilter(BaseRecommender):
         num_factors: int = 5,
         epochs: int = 20,
         lr: float = 0.05,
-    ) -> list[str]:
+    ) -> dict:
         """
         Given a puuid, returns an ordered list of recommended champions.
 
@@ -94,7 +94,7 @@ class SGDCollabFilter(BaseRecommender):
             lr (float, optional): Learning rate. Defaults to 0.05.
 
         Returns:
-            list[str]: List of champions.
+            dict: Rating to champion dict.
         """
         overwrite = False
         puuid_path = os.path.join(
@@ -140,4 +140,11 @@ class SGDCollabFilter(BaseRecommender):
         predicted_ratings = model(user_id, all_champions)
 
         champ_order = torch.argsort(predicted_ratings, descending=True)
-        return list(le_champion.inverse_transform(champ_order.numpy()))
+        # rating : champion
+        predicted_ratings_dict = {
+            predicted_ratings[champ.item()].item(): le_champion.inverse_transform(
+                [champ.item()]
+            )[0]
+            for champ in champ_order
+        }
+        return predicted_ratings_dict
