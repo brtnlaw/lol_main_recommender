@@ -1,4 +1,3 @@
-import math
 import os
 import pickle as pkl
 import random
@@ -26,25 +25,24 @@ class SummonerMixProcessor(BaseProcessor):
         self.map_helper = MapHelper()
         self.riot_api_helper = RiotApiHelper()
 
-    def aggregate_summoner_pkls(self, overwrite_aggregate=False):
+    def aggregate_summoner_pkls(self):
         pass
 
-    def load_rating(self, overwrite_rating=False, overwrite_aggregate=False):
+    def load_rating(self):
         pass
 
-    def load_encoded_ratings(self, overwrite_rating=False, overwrite_aggregate=False):
-        # pkl_path = os.path.join(
-        #     self.project_root, "data/cache/aggregate_sum_champ_data.pkl"
-        # )
-        # if os.path.exists(pkl_path) and not overwrite_aggregate:
-        #     with open(pkl_path, "rb") as f:
-        #         return pkl.load(f)
+    async def async_load_encoded_ratings(self, overwrite_aggregate=False):
+        pkl_path = os.path.join(
+            self.project_root, "data/cache/agg_mastery_data_w_features.pkl"
+        )
+        if os.path.exists(pkl_path) and not overwrite_aggregate:
+            with open(pkl_path, "rb") as f:
+                return pkl.load(f)
 
-        # # Start with the mastery
+        # Start with the existing mastery
         print("Re-aggregating summoner mix data...")
         match_folder_path = self.summoner_match_loader.json_folder_path
         champ_metadata = self.map_helper.get_lolstaticdata_champ_id_mapping()
-        champ_metadata["FiddleSticks"] = champ_metadata.pop("Fiddlesticks")
 
         puuid_dict = defaultdict(dict)
         champ_dict = defaultdict(dict)
@@ -59,11 +57,12 @@ class SummonerMixProcessor(BaseProcessor):
 
         # Build puuid features
         for puuid in puuids:
+            print(f"Generating data for puuid {puuid}")
             rank = self.riot_api_helper.get_player_rank(puuid)[0]["tier"]
             time.sleep(0.025)
 
             if not os.path.exists(os.path.join(match_folder_path, f"{puuid}.pkl")):
-                self.summoner_match_loader.dump_data_for_puuid(puuid)
+                await self.summoner_match_loader.async_dump_data_for_puuid(puuid)
             match_history = self.summoner_match_loader.load_dict_from_pkl(puuid)
             lane_counts = defaultdict(int)
             for champion in match_history:
@@ -79,7 +78,7 @@ class SummonerMixProcessor(BaseProcessor):
             )
 
             puuid_dict[puuid]["rank"] = rank
-            puuid_dict[puuid]["favorite_lane"] = sorted_lanes[0]
+            puuid_dict[puuid]["favorite_lane"] = sorted_lanes[0][0]
 
         rating_df["summoner_rank"] = rating_df["puuid"].map(
             lambda x: puuid_dict.get(x, {}).get("rank")
@@ -93,4 +92,7 @@ class SummonerMixProcessor(BaseProcessor):
         rating_df["champ_adaptive_type"] = rating_df["champ_name"].map(
             lambda x: champ_dict.get(x, {}).get("adaptive_type")
         )
+
+        with open(pkl_path, "wb") as f:
+            pkl.dump(rating_df, f)
         return rating_df

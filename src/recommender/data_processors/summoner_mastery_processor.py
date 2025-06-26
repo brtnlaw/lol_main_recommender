@@ -107,7 +107,6 @@ class SummonerMasteryProcessor(BaseProcessor):
             # If no games, assign 0
             rating_df = pd.DataFrame(player_champion_stats).transpose().fillna(0)
 
-            # Writes to pkl file
             with open(pkl_path, "wb") as f:
                 pkl.dump(rating_df, f)
             return rating_df

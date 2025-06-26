@@ -15,7 +15,6 @@ class MapHelper:
         self.riot_api_helper = RiotApiHelper()
         self.project_root = os.getenv("PROJECT_ROOT")
 
-    # NOTE: For acquiring champion metadata
     def get_riot_champ_data(
         self, version: str = "15.12.1", overwrite: bool = False
     ) -> Optional[dict]:
@@ -76,7 +75,9 @@ class MapHelper:
                 f.write(response.content)
                 print("Champ_id map downloaded successfully.")
             with open(file_path, "rb") as f:
-                return json.load(f)
+                champ_metadata = json.load(f)
+                champ_metadata["FiddleSticks"] = champ_metadata.pop("Fiddlesticks")
+                return champ_metadata
         else:
             print("Failed to retrieve the file. Status code:", response.status_code)
             return None

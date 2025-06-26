@@ -10,7 +10,9 @@ import aiohttp
 from .base_data_loader import BaseDataLoader
 
 
-def process_match_for_puuid(match, puuid):
+def process_match_for_puuid(match: dict, puuid: str) -> tuple[dict, set]:
+    if not match:
+        return {}, set()
     summoner_dict = defaultdict(int)
     participants = match.get("info", {}).get("participants", [])
     new_puuids = set()
@@ -116,7 +118,9 @@ class SummonerMatchLoader(BaseDataLoader):
             f"data/summoner_match_pkls/{puuid}.pkl",
         )
         if os.path.exists(pkl_path) and not overwrite:
-            return
+            print(f"Data already saved for puuid: {puuid}")
+            with open(pkl_path, "rb") as file:
+                return pkl.load(file)
 
         summoner_dict = defaultdict(int)
         print(f"Loading data for puuid: {puuid}")
