@@ -20,9 +20,9 @@ class DotProduct(nn.Module):
 
     def forward(self, summoner_ids, champ_ids):
         """Simply takes the dot product at each forward step to get a predicted rating."""
-        summoner_embedded = self.summoner_factors(summoner_ids)
-        champion_embedded = self.champion_factors(champ_ids)
-        return (summoner_embedded * champion_embedded).sum(dim=1)
+        summoner_embedding = self.summoner_factors(summoner_ids)
+        champion_embedding = self.champion_factors(champ_ids)
+        return (summoner_embedding * champion_embedding).sum(dim=1)
 
 
 class BaseRecommender:
@@ -43,7 +43,6 @@ class BaseRecommender:
         """GEts a rating to champion dictionary to determine what to recommend."""
         pass
 
-    @abstractmethod
     def recommend_champions(self, puuid: str, *args, **kwargs) -> None:
         """Takes in a puuid and returns an ordered list of champions."""
         predicted_ratings_dict = self.get_predicted_ratings(puuid, *args, **kwargs)

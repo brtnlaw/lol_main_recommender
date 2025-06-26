@@ -140,7 +140,11 @@ class SGDCollabFilter(BaseRecommender):
         predicted_ratings = model(user_id, all_champions)
 
         champ_order = torch.argsort(predicted_ratings, descending=True)
-        # rating : champion
+        # Avoid ties
+        epsilon = 1e-6
+        for i in range(len(predicted_ratings)):
+            predicted_ratings[i] -= i * epsilon
+
         predicted_ratings_dict = {
             predicted_ratings[champ.item()].item(): le_champion.inverse_transform(
                 [champ.item()]

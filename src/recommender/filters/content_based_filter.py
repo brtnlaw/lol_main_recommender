@@ -133,6 +133,10 @@ class ContentBasedFilter(BaseRecommender):
         )
         sim = cosine_similarity(user_tensor, champ_tensor)
         champ_order = torch.argsort(sim, descending=True)
+        # Avoid ties
+        epsilon = 1e-6
+        for i in range(len(sim)):
+            sim[i] -= i * epsilon
         predicted_ratings_dict = {
             sim[champ.item()].item(): champ_df.index[champ.item()]
             for champ in champ_order

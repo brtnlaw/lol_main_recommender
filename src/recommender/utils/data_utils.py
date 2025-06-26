@@ -20,6 +20,28 @@ class ChampionsDataset(Dataset):
         return self.puuids[idx], self.champions[idx], self.ratings[idx]
 
 
+class TwoTowerChampionsDataset(Dataset):
+    """Custom Dataset for two-towers."""
+
+    def __init__(self, df):
+        self.ranks = torch.tensor(df["user_id"].values, dtype=torch.long)
+        self.lanes = torch.tensor(df["user_id"].values, dtype=torch.long)
+        self.roles = torch.tensor(df["user_id"].values, dtype=torch.long)
+        self.attack_types = torch.tensor(df["user_id"].values, dtype=torch.long)
+        self.ratings = torch.tensor(df["rating"].values, dtype=torch.float)
+
+    def __len__(self):
+        """Dummy for inheritance."""
+        return len(self.ratings)
+
+    def __getitem__(self, idx):
+        """Gets puuid, champion, and rating."""
+        summoner_features = (self.ranks[idx], self.lanes[idx])
+        champion_features = (self.roles[idx], self.attack_types[idx])
+        rating = self.ratings[idx]
+        return summoner_features, champion_features, rating
+
+
 class MultiEpochsDataLoader(DataLoader):
     """
     Better performance DataLoader over multiple epochs.
