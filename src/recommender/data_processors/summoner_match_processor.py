@@ -6,10 +6,10 @@ from collections import defaultdict
 import pandas as pd
 
 from ..data_loaders.summoner_match_loader import SummonerMatchLoader
-from .base_summoner_processor import BaseSummonerProcessor
+from .base_processor import BaseProcessor
 
 
-class SummonerMatchProcessor(BaseSummonerProcessor):
+class SummonerMatchProcessor(BaseProcessor):
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):
@@ -46,7 +46,7 @@ class SummonerMatchProcessor(BaseSummonerProcessor):
             print(f"Successfully pickled combined puuid_dict.")
         return combined_puuid_dict
 
-    def load_rating(
+    def load_ratings(
         self, overwrite_rating: bool = False, overwrite_aggregate: bool = False
     ) -> pd.DataFrame:
         """

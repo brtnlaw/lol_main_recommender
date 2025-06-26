@@ -7,10 +7,10 @@ import pandas as pd
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..utils.map_helper import MapHelper
-from .base_summoner_processor import BaseSummonerProcessor
+from .base_processor import BaseProcessor
 
 
-class SummonerMasteryProcessor(BaseSummonerProcessor):
+class SummonerMasteryProcessor(BaseProcessor):
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):
@@ -56,7 +56,7 @@ class SummonerMasteryProcessor(BaseSummonerProcessor):
             print(f"Successfully pickled combined puuid_dict.")
         return combined_puuid_dict
 
-    def load_rating(
+    def load_ratings(
         self, overwrite_rating: bool = False, overwrite_aggregate: bool = False
     ) -> pd.DataFrame:
         """

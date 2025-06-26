@@ -1,7 +1,10 @@
+import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
+import aiohttp
 import requests
+from aiolimiter import AsyncLimiter
 
 
 class RiotApiHelper:
@@ -14,6 +17,8 @@ class RiotApiHelper:
         self.region = "na1"
         self.match_region = "americas"
         self.mastery_region = "NA1"
+        self.short_rate_limit = AsyncLimiter(49, 10)
+        self.long_rate_limit = AsyncLimiter(29999, 600)
 
     def get_challenger_puuids(
         self, queue: str = "RANKED_SOLO_5x5", ct: int = 200
@@ -108,4 +113,41 @@ class RiotApiHelper:
             return res.json()
         else:
             print(f"Error fetching data: {res.status_code} - {res.text}")
+            return None
+
+    def get_player_rank(self, puuid: str):
+        url = f"https://{self.mastery_region}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}"
+        res = requests.get(url, headers=self.headers)
+        if res.status_code == 200:
+            return res.json()
+        else:
+            print(f"Error fetching data: {res.status_code} - {res.text}")
+            return None
+
+    async def async_get_match_info(self, session, match_id, semaphore, max_retries=3):
+        url = f"https://{self.match_region}.api.riotgames.com/lol/match/v5/matches/{match_id}"
+        async with semaphore:
+            for _ in range(max_retries):
+                try:
+                    async with self.short_rate_limit:
+                        async with self.long_rate_limit:
+                            async with session.get(url, headers=self.headers) as resp:
+                                if resp.status == 429:
+                                    retry_after = int(
+                                        resp.headers.get("Retry-After", 1)
+                                    )
+                                    print(
+                                        f"Rate limited. Retry after {retry_after} seconds..."
+                                    )
+                                    await asyncio.sleep(retry_after)
+                                    continue
+                                elif resp.status != 200:
+                                    print(f"Failed with status {resp.status}")
+                                    return None
+                                print(f"Match {match_id} loaded successfully.")
+                                return await resp.json()
+                except aiohttp.ClientError as e:
+                    print(f"ClientError: {e}")
+                    await asyncio.sleep(1)
+            print(f"Failed after {max_retries} attempts.")
             return None

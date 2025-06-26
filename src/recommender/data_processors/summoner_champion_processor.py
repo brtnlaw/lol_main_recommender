@@ -1,0 +1,96 @@
+import math
+import os
+import pickle as pkl
+import random
+import time
+from collections import defaultdict
+
+import pandas as pd
+
+from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
+from ..data_loaders.summoner_match_loader import SummonerMatchLoader
+from ..data_processors.summoner_mastery_processor import SummonerMasteryProcessor
+from ..utils.map_helper import MapHelper
+from ..utils.riot_api_helper import RiotApiHelper
+from .base_processor import BaseProcessor
+
+
+class SummonerMixProcessor(BaseProcessor):
+    """Includes feature data about summoner and champion for two tower model."""
+
+    def __init__(self):
+        super().__init__()
+        self.summoner_mastery_loader = SummonerMasteryLoader()
+        self.summoner_match_loader = SummonerMatchLoader()
+        self.summoner_mastery_processor = SummonerMasteryProcessor()
+        self.map_helper = MapHelper()
+        self.riot_api_helper = RiotApiHelper()
+
+    def aggregate_summoner_pkls(self, overwrite_aggregate=False):
+        pass
+
+    def load_rating(self, overwrite_rating=False, overwrite_aggregate=False):
+        pass
+
+    def load_encoded_ratings(self, overwrite_rating=False, overwrite_aggregate=False):
+        # pkl_path = os.path.join(
+        #     self.project_root, "data/cache/aggregate_sum_champ_data.pkl"
+        # )
+        # if os.path.exists(pkl_path) and not overwrite_aggregate:
+        #     with open(pkl_path, "rb") as f:
+        #         return pkl.load(f)
+
+        # # Start with the mastery
+        print("Re-aggregating summoner mix data...")
+        match_folder_path = self.summoner_match_loader.json_folder_path
+        champ_metadata = self.map_helper.get_lolstaticdata_champ_id_mapping()
+        champ_metadata["FiddleSticks"] = champ_metadata.pop("Fiddlesticks")
+
+        puuid_dict = defaultdict(dict)
+        champ_dict = defaultdict(dict)
+
+        rating_df = self.summoner_mastery_processor.load_encoded_ratings()[0]
+        puuids = rating_df["puuid"].unique()
+
+        # Build champ features
+        for champ in champ_metadata:
+            champ_dict[champ]["adaptive_type"] = champ_metadata[champ]["adaptiveType"]
+            champ_dict[champ]["attack_type"] = champ_metadata[champ]["attackType"]
+
+        # Build puuid features
+        for puuid in puuids:
+            rank = self.riot_api_helper.get_player_rank(puuid)[0]["tier"]
+            time.sleep(0.025)
+
+            if not os.path.exists(os.path.join(match_folder_path, f"{puuid}.pkl")):
+                self.summoner_match_loader.dump_data_for_puuid(puuid)
+            match_history = self.summoner_match_loader.load_dict_from_pkl(puuid)
+            lane_counts = defaultdict(int)
+            for champion in match_history:
+                if "_" in champion:
+                    continue
+                games_played = match_history[champion]
+                for lane in champ_metadata[champion]["positions"]:
+                    lane_counts[lane] += games_played
+
+            # Break ties of lanes randomly
+            sorted_lanes = sorted(
+                lane_counts.items(), key=lambda x: (-x[1], random.random())
+            )
+
+            puuid_dict[puuid]["rank"] = rank
+            puuid_dict[puuid]["favorite_lane"] = sorted_lanes[0]
+
+        rating_df["summoner_rank"] = rating_df["puuid"].map(
+            lambda x: puuid_dict.get(x, {}).get("rank")
+        )
+        rating_df["summoner_lane"] = rating_df["puuid"].map(
+            lambda x: puuid_dict.get(x, {}).get("favorite_lane")
+        )
+        rating_df["champ_attack_type"] = rating_df["champ_name"].map(
+            lambda x: champ_dict.get(x, {}).get("attack_type")
+        )
+        rating_df["champ_adaptive_type"] = rating_df["champ_name"].map(
+            lambda x: champ_dict.get(x, {}).get("adaptive_type")
+        )
+        return rating_df

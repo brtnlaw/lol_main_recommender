@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.calibration import LabelEncoder
 
 
-class BaseSummonerProcessor:
+class BaseProcessor:
     """Class for manipulating raw data and creating ratings per user."""
 
     def __init__(self):
@@ -26,7 +26,7 @@ class BaseSummonerProcessor:
         pass
 
     @abstractmethod
-    def load_rating(
+    def load_ratings(
         self, overwrite_rating: bool = False, overwrite_aggregate: bool = False
     ) -> pd.DataFrame:
         """
@@ -53,7 +53,7 @@ class BaseSummonerProcessor:
         Returns:
             Tuple[pd.DataFrame, LabelEncoder, LabelEncoder]: Cleaned DataFrame, user encoder, champion encoder.
         """
-        rating_df = self.load_rating(overwrite_rating, overwrite_aggregate)
+        rating_df = self.load_ratings(overwrite_rating, overwrite_aggregate)
         rating_df.index.name = "puuid"
         rating_df.reset_index(inplace=True)
         rating_df = pd.melt(
