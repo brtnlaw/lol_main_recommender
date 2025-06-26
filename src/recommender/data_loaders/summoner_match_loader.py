@@ -1,7 +1,6 @@
 import asyncio
 import os
 import pickle as pkl
-import time
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 
@@ -16,7 +15,6 @@ def process_match_for_puuid(match: dict, puuid: str) -> tuple[dict, set]:
     summoner_dict = defaultdict(int)
     participants = match.get("info", {}).get("participants", [])
     new_puuids = set()
-    # Bottleneck here
     for participant in participants:
         match_puuid = participant.get("puuid")
         if match_puuid == puuid:
@@ -25,7 +23,6 @@ def process_match_for_puuid(match: dict, puuid: str) -> tuple[dict, set]:
             kills = participant.get("kills")
             deaths = participant.get("deaths")
             assists = participant.get("assists")
-
             for stat_key, value in {
                 champion_name: 1,
                 f"{champion_name}_kills": kills,
@@ -55,63 +52,6 @@ class SummonerMatchLoader(BaseDataLoader):
             ),
         )
 
-    # TODO: Get rid of later
-    def dump_data_for_puuid(
-        self, puuid: str, ct: int = 25, overwrite: bool = False
-    ) -> None:
-        """
-        Given a puuid, dumps ranked match info from pkl into a json.
-
-        Args:
-            puuid (str): Puuid of interest.
-            ct (int, optional): Number of matches. Defaults to 25.
-            overwrite (bool, optional): Whether or not to overwrite the puuid. Defaults to False.
-        """
-        pkl_path = os.path.join(
-            self.project_root,
-            f"data/summoner_match_pkls/{puuid}.pkl",
-        )
-        if os.path.exists(pkl_path) and not overwrite:
-            return
-
-        summoner_dict = defaultdict(int)
-        print(f"Loading data for puuid: {puuid}")
-        match_ids = self.riot_api_helper.get_player_matches(puuid, ct)
-
-        for i in range(len(match_ids)):
-            match_id = match_ids[i]
-            print(f"Match {i} loaded, id: {match_id}...")
-            match = self.riot_api_helper.get_match_info(match_id)
-            participants = match.get("info", {}).get("participants", [])
-            # Bottleneck here
-            for participant in participants:
-                match_puuid = participant.get("puuid")
-                if match_puuid == puuid:
-                    champion_name = participant.get("championName")
-                    win = participant.get("win")
-                    kills = participant.get("kills")
-                    deaths = participant.get("deaths")
-                    assists = participant.get("assists")
-
-                    for stat_key, value in {
-                        champion_name: 1,
-                        f"{champion_name}_kills": kills,
-                        f"{champion_name}_assists": assists,
-                        f"{champion_name}_deaths": deaths,
-                        f"{champion_name}_wins": int(win),
-                    }.items():
-                        summoner_dict[stat_key] += value
-                elif (
-                    match_puuid not in self.processed_puuids and len(match_puuid) == 78
-                ):
-                    self.pending_puuids.add(match_puuid)
-                    self.save_puuid_json()
-            time.sleep(0.025)
-
-        with open(pkl_path, "wb") as f:
-            pkl.dump(dict(summoner_dict), f)
-        print(f"Successfully saved data for puuid: {puuid}")
-
     async def async_dump_data_for_puuid(self, puuid, overwrite=False, ct=25):
         pkl_path = os.path.join(
             self.project_root,
@@ -125,6 +65,8 @@ class SummonerMatchLoader(BaseDataLoader):
         summoner_dict = defaultdict(int)
         print(f"Loading data for puuid: {puuid}")
         match_ids = self.riot_api_helper.get_player_matches(puuid, ct)
+
+        # Async load match info given id
         semaphore = asyncio.Semaphore(5)
         async with aiohttp.ClientSession() as session:
             tasks = [
@@ -133,6 +75,7 @@ class SummonerMatchLoader(BaseDataLoader):
             ]
             matches = await asyncio.gather(*tasks)
 
+        # Parallelize matches
         with ProcessPoolExecutor() as executor:
             futures = [
                 executor.submit(process_match_for_puuid, match, puuid)

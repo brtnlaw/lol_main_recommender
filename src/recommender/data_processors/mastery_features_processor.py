@@ -8,13 +8,13 @@ import pandas as pd
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..data_loaders.summoner_match_loader import SummonerMatchLoader
-from ..data_processors.summoner_mastery_processor import SummonerMasteryProcessor
 from ..utils.map_helper import MapHelper
 from ..utils.riot_api_helper import RiotApiHelper
 from .base_processor import BaseProcessor
+from .summoner_mastery_processor import SummonerMasteryProcessor
 
 
-class SummonerMixProcessor(BaseProcessor):
+class MasteryFeaturesProcessor(BaseProcessor):
     """Includes feature data about summoner and champion for two tower model."""
 
     def __init__(self):
@@ -26,12 +26,25 @@ class SummonerMixProcessor(BaseProcessor):
         self.riot_api_helper = RiotApiHelper()
 
     def aggregate_summoner_pkls(self):
+        """Not applicable, as relies on other loaders."""
         pass
 
     def load_rating(self):
+        """Not applicable, as relies on other loaders."""
         pass
 
-    async def async_load_encoded_ratings(self, overwrite_aggregate=False):
+    async def async_load_encoded_ratings(
+        self, overwrite_aggregate=False
+    ) -> pd.DataFrame:
+        """
+        Asynchronously generates the encoded ratings, adding features to the existing aggregate mastery pkl.
+
+        Args:
+            overwrite_aggregate (bool, optional): Whether or not to overwrite aggregate. Defaults to False.
+
+        Returns:
+            pd.DataFrame: Ratings DataFrame with features.
+        """
         pkl_path = os.path.join(
             self.project_root, "data/cache/agg_mastery_data_w_features.pkl"
         )
