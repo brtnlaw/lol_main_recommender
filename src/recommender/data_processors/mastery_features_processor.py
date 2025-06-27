@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 
 import pandas as pd
+from sklearn.calibration import LabelEncoder
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..data_loaders.summoner_match_loader import SummonerMatchLoader
@@ -35,7 +36,7 @@ class MasteryFeaturesProcessor(BaseProcessor):
 
     async def async_load_encoded_ratings(
         self, overwrite_aggregate=False
-    ) -> pd.DataFrame:
+    ) -> tuple[pd.DataFrame, LabelEncoder, LabelEncoder]:
         """
         Asynchronously generates the encoded ratings, adding features to the existing aggregate mastery pkl.
 
@@ -45,12 +46,17 @@ class MasteryFeaturesProcessor(BaseProcessor):
         Returns:
             pd.DataFrame: Ratings DataFrame with features.
         """
+
+        rating_df, le_user, le_champion = (
+            self.summoner_mastery_processor.load_encoded_ratings()
+        )
+
         pkl_path = os.path.join(
-            self.project_root, "data/cache/agg_mastery_data_w_features.pkl"
+            self.project_root, "data/cache/agg_mastery_features_data.pkl"
         )
         if os.path.exists(pkl_path) and not overwrite_aggregate:
             with open(pkl_path, "rb") as f:
-                return pkl.load(f)
+                return pkl.load(f), le_user, le_champion
 
         # Start with the existing mastery
         print("Re-aggregating summoner mix data...")
@@ -59,10 +65,8 @@ class MasteryFeaturesProcessor(BaseProcessor):
 
         puuid_dict = defaultdict(dict)
         champ_dict = defaultdict(dict)
-
-        rating_df = self.summoner_mastery_processor.load_encoded_ratings()[0]
         puuids = rating_df["puuid"].unique()
-
+        # ????
         # Build champ features
         for champ in champ_metadata:
             champ_dict[champ]["adaptive_type"] = champ_metadata[champ]["adaptiveType"]
@@ -82,6 +86,8 @@ class MasteryFeaturesProcessor(BaseProcessor):
                 if "_" in champion:
                     continue
                 games_played = match_history[champion]
+                if champion == "FiddleSticks":
+                    champion = "Fiddlesticks"
                 for lane in champ_metadata[champion]["positions"]:
                     lane_counts[lane] += games_played
 
@@ -108,4 +114,4 @@ class MasteryFeaturesProcessor(BaseProcessor):
 
         with open(pkl_path, "wb") as f:
             pkl.dump(rating_df, f)
-        return rating_df
+        return rating_df, le_user, le_champion

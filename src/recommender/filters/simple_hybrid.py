@@ -12,7 +12,16 @@ class SimpleHybridFilter(BaseRecommender):
         self.content_based_filter = ContentBasedFilter()
         self.weight = 0.5
 
-    def get_predicted_ratings(self, puuid: str):
+    def get_predicted_ratings(self, puuid: str) -> dict:
+        """
+        Gets predicted ratings using a weight of recommendation systems.
+
+        Args:
+            puuid (str): Puuid of interest.
+
+        Returns:
+            dict: Prediction dict of rating to champ.
+        """
         als_preds = self.als_collab_filter.get_predicted_ratings(puuid)
         cbf_preds = self.content_based_filter.get_predicted_ratings(puuid)
 

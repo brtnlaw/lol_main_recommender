@@ -34,10 +34,11 @@ class ChampTower(nn.Module):
         super().__init__()
         self.num_factors = 10
         # not lanes, idk how many
-        self.role_factors = nn.Embedding(5, 8)
         self.attack_type_factors = nn.Embedding(2, 8)
+        self.adaptive_type_factors = nn.Embedding(2, 8)
         self.input_dim = (
-            self.role_factors.embedding_dim + self.attack_type_factors.embedding_dim
+            self.attack_type_factors.embedding_dim
+            + self.adaptive_type_factors.embedding_dim
         )
         self.mlp = nn.Sequential(
             nn.Linear(self.input_dim, 64),
@@ -47,9 +48,12 @@ class ChampTower(nn.Module):
             nn.Linear(32, self.num_factors),
         )
 
-    def forward(self, role_ids, attack_type_ids):
+    def forward(self, attack_type_ids, adaptive_type_ids):
         x = torch.concat(
-            [self.role_factors(role_ids), self.attack_type_factors(attack_type_ids)],
+            [
+                self.attack_type_factors(attack_type_ids),
+                self.adaptive_type_factors(adaptive_type_ids),
+            ],
             dim=-1,
         )
         return self.mlp(x)

@@ -1,6 +1,5 @@
 import os
 from abc import abstractmethod
-from typing import Tuple
 
 import pandas as pd
 from sklearn.calibration import LabelEncoder
@@ -42,7 +41,7 @@ class BaseProcessor:
 
     def load_encoded_ratings(
         self, overwrite_rating: bool = False, overwrite_aggregate: bool = False
-    ) -> Tuple[pd.DataFrame, LabelEncoder, LabelEncoder]:
+    ) -> tuple[pd.DataFrame, LabelEncoder, LabelEncoder]:
         """
         Cleans up the rating DataFrame and encodes.
 
@@ -51,7 +50,7 @@ class BaseProcessor:
             overwrite_aggregate (bool, optional): Whether or not to overwrite the aggregate dict. Defaults to False.
 
         Returns:
-            Tuple[pd.DataFrame, LabelEncoder, LabelEncoder]: Cleaned DataFrame, user encoder, champion encoder.
+            tuple[pd.DataFrame, LabelEncoder, LabelEncoder]: Cleaned DataFrame, user encoder, champion encoder.
         """
         rating_df = self.load_ratings(overwrite_rating, overwrite_aggregate)
         rating_df.index.name = "puuid"

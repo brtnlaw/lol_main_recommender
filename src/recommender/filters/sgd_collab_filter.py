@@ -29,8 +29,8 @@ class SGDCollabFilter(BaseRecommender):
         model.eval()
         y_pred, y_true = [], []
         with torch.no_grad():
-            for user_ids, champ_ids, ratings in test_loader:
-                preds = model(user_ids, champ_ids)
+            for summoner_ids, champ_ids, ratings in test_loader:
+                preds = model(summoner_ids, champ_ids)
                 y_pred.extend(preds.numpy())
                 y_true.extend(ratings.numpy())
             mse = mean_squared_error(y_true, y_pred)
@@ -60,9 +60,9 @@ class SGDCollabFilter(BaseRecommender):
         for epoch in range(epochs):
             model.train()
             total_loss = 0
-            for user_ids, champ_ids, ratings in train_loader:
+            for summoner_ids, champ_ids, ratings in train_loader:
                 optimizer.zero_grad()
-                preds = model(user_ids, champ_ids)
+                preds = model(summoner_ids, champ_ids)
                 loss = criterion(preds, ratings)
                 loss.backward()
                 optimizer.step()

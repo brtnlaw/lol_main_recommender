@@ -20,14 +20,16 @@ class ChampionsDataset(Dataset):
         return self.puuids[idx], self.champions[idx], self.ratings[idx]
 
 
-class TwoTowerChampionsDataset(Dataset):
+class ChampionsFeaturesDataset(Dataset):
     """Custom Dataset for two-towers."""
 
     def __init__(self, df):
-        self.ranks = torch.tensor(df["user_id"].values, dtype=torch.long)
-        self.lanes = torch.tensor(df["user_id"].values, dtype=torch.long)
-        self.roles = torch.tensor(df["user_id"].values, dtype=torch.long)
-        self.attack_types = torch.tensor(df["user_id"].values, dtype=torch.long)
+        self.ranks = torch.tensor(df["summoner_rank"].values, dtype=torch.long)
+        self.lanes = torch.tensor(df["summoner_lane"].values, dtype=torch.long)
+        self.roles = torch.tensor(df["champ_attack_type"].values, dtype=torch.long)
+        self.attack_types = torch.tensor(
+            df["champ_adaptive_type"].values, dtype=torch.long
+        )
         self.ratings = torch.tensor(df["rating"].values, dtype=torch.float)
 
     def __len__(self):
