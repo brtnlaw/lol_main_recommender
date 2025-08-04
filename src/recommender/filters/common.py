@@ -40,7 +40,7 @@ class BaseRecommender:
 
     @abstractmethod
     def get_predicted_ratings(self, puuid: str, *args, **kwargs) -> dict:
-        """GEts a rating to champion dictionary to determine what to recommend."""
+        """Gets a rating to champion dictionary to determine what to recommend."""
         pass
 
     def recommend_champions(self, puuid: str, *args, **kwargs) -> None:

@@ -1,3 +1,4 @@
 - [ ] Two Tower
     - [ ] Get an MVP of the model
     - [ ] Add more interesting features
+- [ ] Memory Based Collab Filter for posterity?

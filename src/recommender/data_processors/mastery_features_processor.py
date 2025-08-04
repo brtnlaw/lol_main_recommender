@@ -66,7 +66,6 @@ class MasteryFeaturesProcessor(BaseProcessor):
         puuid_dict = defaultdict(dict)
         champ_dict = defaultdict(dict)
         puuids = rating_df["puuid"].unique()
-        # ????
         # Build champ features
         for champ in champ_metadata:
             champ_dict[champ]["adaptive_type"] = champ_metadata[champ]["adaptiveType"]

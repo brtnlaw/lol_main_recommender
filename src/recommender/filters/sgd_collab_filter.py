@@ -71,7 +71,7 @@ class SGDCollabFilter(BaseRecommender):
             self.evaluate_model(model, test_loader)
         print(f"Model training completed in {(time.time() - start_time)} seconds.")
 
-    def recommend_champions(
+    def get_predicted_ratings(
         self,
         puuid: str,
         test_size: float = 0.2,
