@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
@@ -24,12 +25,26 @@ class ChampionsFeaturesDataset(Dataset):
     """Custom Dataset for two-towers."""
 
     def __init__(self, df):
+        # ===== Summoners ======
         self.ranks = torch.tensor(df["summoner_rank"].values, dtype=torch.long)
         self.lanes = torch.tensor(df["summoner_lane"].values, dtype=torch.long)
-        self.roles = torch.tensor(df["champ_attack_type"].values, dtype=torch.long)
+
+        # ====== Champions ======
         self.attack_types = torch.tensor(
+            df["champ_attack_type"].values, dtype=torch.long
+        )
+        self.adaptive_types = torch.tensor(
             df["champ_adaptive_type"].values, dtype=torch.long
         )
+        self.resources = torch.tensor(df["champ_resource"].values, dtype=torch.long)
+
+        # Encoded tensors
+        self.roles = torch.tensor(np.stack(df["champ_roles"].values), dtype=torch.float)
+        self.positions = torch.tensor(
+            np.stack(df["champ_positions"].values), dtype=torch.float
+        )
+
+        # Desired rating
         self.ratings = torch.tensor(df["rating"].values, dtype=torch.float)
 
     def __len__(self):
@@ -39,7 +54,13 @@ class ChampionsFeaturesDataset(Dataset):
     def __getitem__(self, idx):
         """Gets puuid, champion, and rating."""
         summoner_features = (self.ranks[idx], self.lanes[idx])
-        champion_features = (self.roles[idx], self.attack_types[idx])
+        champion_features = (
+            self.attack_types[idx],
+            self.adaptive_types[idx],
+            self.resources[idx],
+            self.roles[idx],
+            self.positions[idx],
+        )
         rating = self.ratings[idx]
         return summoner_features, champion_features, rating
 

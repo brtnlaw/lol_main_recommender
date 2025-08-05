@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import pandas as pd
 from sklearn.calibration import LabelEncoder
+from sklearn.preprocessing import MultiLabelBinarizer
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..data_loaders.summoner_match_loader import SummonerMatchLoader
@@ -46,7 +47,6 @@ class MasteryFeaturesProcessor(BaseProcessor):
         Returns:
             pd.DataFrame: Ratings DataFrame with features.
         """
-
         rating_df, le_user, le_champion = (
             self.summoner_mastery_processor.load_encoded_ratings()
         )
@@ -66,12 +66,18 @@ class MasteryFeaturesProcessor(BaseProcessor):
         puuid_dict = defaultdict(dict)
         champ_dict = defaultdict(dict)
         puuids = rating_df["puuid"].unique()
+
         # Build champ features
         for champ in champ_metadata:
             champ_dict[champ]["adaptive_type"] = champ_metadata[champ]["adaptiveType"]
             champ_dict[champ]["attack_type"] = champ_metadata[champ]["attackType"]
 
-        # Build puuid features
+            # TODO: Eventually include QWER CD? Range? Damage? Utility?
+            champ_dict[champ]["resource"] = champ_metadata[champ]["resource"]
+            champ_dict[champ]["positions"] = champ_metadata[champ]["positions"]
+            champ_dict[champ]["roles"] = champ_metadata[champ]["roles"]
+
+        # Build summoner features
         for puuid in puuids:
             print(f"Generating data for puuid {puuid}")
             rank = self.riot_api_helper.get_player_rank(puuid)[0]["tier"]
@@ -96,20 +102,18 @@ class MasteryFeaturesProcessor(BaseProcessor):
             )
 
             puuid_dict[puuid]["rank"] = rank
-            puuid_dict[puuid]["favorite_lane"] = sorted_lanes[0][0]
+            puuid_dict[puuid]["lane"] = sorted_lanes[0][0]
 
-        rating_df["summoner_rank"] = rating_df["puuid"].map(
-            lambda x: puuid_dict.get(x, {}).get("rank")
-        )
-        rating_df["summoner_lane"] = rating_df["puuid"].map(
-            lambda x: puuid_dict.get(x, {}).get("favorite_lane")
-        )
-        rating_df["champ_attack_type"] = rating_df["champ_name"].map(
-            lambda x: champ_dict.get(x, {}).get("attack_type")
-        )
-        rating_df["champ_adaptive_type"] = rating_df["champ_name"].map(
-            lambda x: champ_dict.get(x, {}).get("adaptive_type")
-        )
+        # Just loops through second layer
+        for attribute in puuid_dict[next(iter(puuid_dict))]:
+            rating_df[f"summoner_{attribute}"] = rating_df["puuid"].map(
+                lambda x: puuid_dict.get(x, {}).get(attribute)
+            )
+
+        for attribute in champ_dict[next(iter(champ_dict))]:
+            rating_df[f"champ_{attribute}"] = rating_df["champ_name"].map(
+                lambda x: champ_dict.get(x, {}).get(attribute)
+            )
 
         with open(pkl_path, "wb") as f:
             pkl.dump(rating_df, f)

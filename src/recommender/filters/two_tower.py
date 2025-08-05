@@ -1,11 +1,13 @@
 import os
 import time
 
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import MultiLabelBinarizer, OrdinalEncoder
 from torch.utils.data import DataLoader
 
 from recommender.data_processors.mastery_features_processor import (
@@ -51,13 +53,24 @@ class ChampTower(nn.Module):
     def __init__(self):
         super().__init__()
         self.num_factors = 10
+
         # Melee Ranged
         self.attack_type_factors = nn.Embedding(2, 8)
         # AD AP
         self.adaptive_type_factors = nn.Embedding(2, 8)
+        # Mana, Blood Well, etc.
+        self.resource_factors = nn.Embedding(15, 8)
+
+        # For Multi-Hot Encoding, we use a small MLP to synthesize vector into embedding representation
+        self.role_mlp = nn.Sequential(nn.Linear(17, 16), nn.ReLU(), nn.Linear(16, 8))
+        self.position_mlp = nn.Sequential(nn.Linear(5, 16), nn.ReLU(), nn.Linear(16, 8))
+
         self.input_dim = (
             self.attack_type_factors.embedding_dim
             + self.adaptive_type_factors.embedding_dim
+            + self.resource_factors.embedding_dim
+            + self.role_mlp[-1].out_features
+            + self.position_mlp[-1].out_features
         )
         self.mlp = nn.Sequential(
             nn.Linear(self.input_dim, 64),
@@ -67,11 +80,21 @@ class ChampTower(nn.Module):
             nn.Linear(32, self.num_factors),
         )
 
-    def forward(self, attack_type_ids, adaptive_type_ids):
+    def forward(
+        self,
+        attack_type_ids,
+        adaptive_type_ids,
+        resource_ids,
+        role_multihots,
+        position_multihots,
+    ):
         x = torch.concat(
             [
                 self.attack_type_factors(attack_type_ids),
                 self.adaptive_type_factors(adaptive_type_ids),
+                self.resource_factors(resource_ids),
+                self.role_mlp(role_multihots),
+                self.position_mlp(position_multihots),
             ],
             dim=-1,
         )
@@ -88,8 +111,10 @@ class TwoTowerModel(nn.Module):
     def forward(self, summoner_tensor_tuple, champ_tensor_tuple):
         summoner_embedding = self.summoner_tower(*summoner_tensor_tuple)
         champion_embedding = self.champ_tower(*champ_tensor_tuple)
+
+        # cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+        # score = cos(summoner_embedding, champion_embedding)
         score = (summoner_embedding * champion_embedding).sum(dim=-1)
-        # score = nn.CosineSimilarity(summoner_embedding, champion_embedding)
         return score
 
 
@@ -131,7 +156,7 @@ class TwoTowerRecommender(BaseRecommender):
         test_size=0.2,
         num_workers: int = 3,
         batch_size: int = 10,
-        epochs: int = 3,
+        epochs: int = 1,
         lr: float = 0.05,
     ):
         mfp = MasteryFeaturesProcessor()
@@ -147,10 +172,34 @@ class TwoTowerRecommender(BaseRecommender):
             "summoner_lane",
             "champ_attack_type",
             "champ_adaptive_type",
+            # New
+            "champ_resource",
         ]
         df[categorical_cols] = (
             OrdinalEncoder().fit_transform(df[categorical_cols]).astype(int)
         )
+
+        list_cols = ["champ_positions", "champ_roles"]
+        mlb = MultiLabelBinarizer()
+        for list_col in list_cols:
+            position_onehot = pd.DataFrame(
+                mlb.fit_transform(df[list_col]),
+                columns=[f"{list_col}_{cls}" for cls in mlb.classes_],
+                index=df.index,
+            )
+            df = pd.concat([df.drop(columns=[list_col]), position_onehot], axis=1)
+
+        role_cols = sorted([col for col in df.columns if col.startswith("champ_roles")])
+        df["champ_roles"] = tuple(zip(*(df[role_col] for role_col in role_cols)))
+        df.drop(columns=role_cols, inplace=True)
+
+        position_cols = sorted(
+            [col for col in df.columns if col.startswith("champ_positions")]
+        )
+        df["champ_positions"] = tuple(
+            zip(*(df[position_col] for position_col in position_cols))
+        )
+        df.drop(columns=position_cols, inplace=True)
 
         train_df, test_df = train_test_split(df, test_size=test_size)
         train_dataset = ChampionsFeaturesDataset(train_df)
@@ -182,7 +231,16 @@ class TwoTowerRecommender(BaseRecommender):
         summoner_tensor_tuple = (rank_ids, lane_ids)
 
         champ_df = (
-            df[["champ_name", "champ_attack_type", "champ_adaptive_type"]]
+            df[
+                [
+                    "champ_name",
+                    "champ_attack_type",
+                    "champ_adaptive_type",
+                    "champ_resource",
+                    "champ_roles",
+                    "champ_positions",
+                ]
+            ]
             .drop_duplicates()
             .sort_values(by="champ_name")
         )
@@ -192,7 +250,21 @@ class TwoTowerRecommender(BaseRecommender):
         adaptive_type_ids = torch.tensor(
             champ_df["champ_adaptive_type"].values, dtype=torch.long
         )
-        champ_tensor_tuple = (attack_type_ids, adaptive_type_ids)
+        resource_ids = torch.tensor(champ_df["champ_resource"].values, dtype=torch.long)
+        role_multihots = torch.tensor(
+            np.stack(champ_df["champ_roles"].values), dtype=torch.float
+        )
+        position_multihots = torch.tensor(
+            np.stack(champ_df["champ_positions"].values), dtype=torch.float
+        )
+
+        champ_tensor_tuple = (
+            attack_type_ids,
+            adaptive_type_ids,
+            resource_ids,
+            role_multihots,
+            position_multihots,
+        )
 
         predicted_ratings = model(summoner_tensor_tuple, champ_tensor_tuple)
         champ_order = torch.argsort(predicted_ratings, descending=True)
