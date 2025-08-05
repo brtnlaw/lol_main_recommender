@@ -65,8 +65,8 @@ class ChampTower(nn.Module):
             + self.adaptive_type_factors.embedding_dim
             + self.resource_factors.embedding_dim
             # NOTE: Turn this back on later
-            # + self.role_mlp[-1].out_features
-            # + self.position_mlp[-1].out_features
+            + self.role_mlp[-1].out_features
+            + self.position_mlp[-1].out_features
         )
         self.mlp = nn.Sequential(
             nn.Linear(self.input_dim, 128),
@@ -91,8 +91,8 @@ class ChampTower(nn.Module):
                 self.attack_type_factors(attack_type_ids),
                 self.adaptive_type_factors(adaptive_type_ids),
                 self.resource_factors(resource_ids),
-                # self.role_mlp(role_multihots),
-                # self.position_mlp(position_multihots),
+                self.role_mlp(role_multihots),
+                self.position_mlp(position_multihots),
             ],
             dim=-1,
         )
@@ -110,8 +110,6 @@ class TwoTowerModel(nn.Module):
         summoner_embedding = self.summoner_tower(*summoner_tensor_tuple)
         champion_embedding = self.champ_tower(*champ_tensor_tuple)
 
-        # cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-        # score = cos(summoner_embedding, champion_embedding)
         score = (summoner_embedding * champion_embedding).sum(dim=-1)
         return score
 
