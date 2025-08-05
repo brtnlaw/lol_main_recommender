@@ -6,7 +6,6 @@ from collections import defaultdict
 
 import pandas as pd
 from sklearn.calibration import LabelEncoder
-from sklearn.preprocessing import MultiLabelBinarizer
 
 from ..data_loaders.summoner_mastery_loader import SummonerMasteryLoader
 from ..data_loaders.summoner_match_loader import SummonerMatchLoader

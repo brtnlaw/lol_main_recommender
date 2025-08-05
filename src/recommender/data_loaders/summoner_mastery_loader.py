@@ -3,7 +3,11 @@ import pickle as pkl
 import time
 from collections import defaultdict
 
+from dotenv import load_dotenv
+
 from .base_data_loader import BaseDataLoader
+
+load_dotenv()
 
 
 class SummonerMasteryLoader(BaseDataLoader):

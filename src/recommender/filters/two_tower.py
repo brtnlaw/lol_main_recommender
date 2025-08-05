@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 
@@ -8,18 +9,12 @@ import torch.nn as nn
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, OrdinalEncoder
-from torch.utils.data import DataLoader
 
-from recommender.data_processors.mastery_features_processor import (
+from ...recommender.data_processors.mastery_features_processor import (
     MasteryFeaturesProcessor,
 )
-
-from ..utils.data_utils import (
-    ChampionsDataset,
-    ChampionsFeaturesDataset,
-    MultiEpochsDataLoader,
-)
-from .common import BaseRecommender, DotProduct
+from ..utils.data_utils import ChampionsFeaturesDataset, MultiEpochsDataLoader
+from .common import BaseRecommender
 
 
 class SummonerTower(nn.Module):
@@ -69,12 +64,15 @@ class ChampTower(nn.Module):
             self.attack_type_factors.embedding_dim
             + self.adaptive_type_factors.embedding_dim
             + self.resource_factors.embedding_dim
-            + self.role_mlp[-1].out_features
-            + self.position_mlp[-1].out_features
+            # NOTE: Turn this back on later
+            # + self.role_mlp[-1].out_features
+            # + self.position_mlp[-1].out_features
         )
         self.mlp = nn.Sequential(
-            nn.Linear(self.input_dim, 64),
+            nn.Linear(self.input_dim, 128),
             nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
             nn.Linear(64, 32),
             nn.ReLU(),
             nn.Linear(32, self.num_factors),
@@ -93,8 +91,8 @@ class ChampTower(nn.Module):
                 self.attack_type_factors(attack_type_ids),
                 self.adaptive_type_factors(adaptive_type_ids),
                 self.resource_factors(resource_ids),
-                self.role_mlp(role_multihots),
-                self.position_mlp(position_multihots),
+                # self.role_mlp(role_multihots),
+                # self.position_mlp(position_multihots),
             ],
             dim=-1,
         )
@@ -140,6 +138,11 @@ class TwoTowerRecommender(BaseRecommender):
             model.train()
             total_loss = 0
             for summoner_tuple, champion_tuple, ratings in train_loader:
+                # NOTE: Testing if any speed ups
+                summoner_tuple = tuple(t.to(self.device) for t in summoner_tuple)
+                champion_tuple = tuple(t.to(self.device) for t in champion_tuple)
+                ratings = ratings.to(self.device)
+
                 optimizer.zero_grad()
                 preds = model(summoner_tuple, champion_tuple)
                 loss = criterion(preds, ratings)
@@ -157,7 +160,8 @@ class TwoTowerRecommender(BaseRecommender):
         num_workers: int = 3,
         batch_size: int = 10,
         epochs: int = 1,
-        lr: float = 0.05,
+        # NOTE: Have found that increasing LR too high leads to constant output from MLP
+        lr: float = 0.0005,
     ):
         mfp = MasteryFeaturesProcessor()
         puuid_path = os.path.join(
@@ -172,7 +176,6 @@ class TwoTowerRecommender(BaseRecommender):
             "summoner_lane",
             "champ_attack_type",
             "champ_adaptive_type",
-            # New
             "champ_resource",
         ]
         df[categorical_cols] = (
@@ -221,8 +224,10 @@ class TwoTowerRecommender(BaseRecommender):
         )
 
         model = TwoTowerModel().to(self.device)
+        epochs = 5
         self.train_and_evaluate_model(model, train_loader, test_loader, epochs, lr)
 
+        # Predict for the given summoner
         # TODO: Clean this part up
         summoner_df = df[df["puuid"] == puuid].iloc[0]
 
@@ -275,3 +280,13 @@ class TwoTowerRecommender(BaseRecommender):
             for champ in champ_order
         }
         return predicted_ratings_dict
+
+
+if __name__ == "__main__":
+    # python -m src.recommender.filters.two_tower
+    async def main():
+        puuid = "--EEhXPKpjfGXqRUXQeFUIrad-z3jgjyrwQj6Z49G4zWAK77gXCckScrJ9yxTxy91DXiJXWp_ka1Vg"
+        ttr = TwoTowerRecommender()
+        await ttr.get_predicted_ratings(puuid)
+
+    asyncio.run(main())
