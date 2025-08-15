@@ -10,23 +10,29 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, OrdinalEncoder
 
-from ...recommender.data_processors.mastery_features_processor import (
-    MasteryFeaturesProcessor,
-)
+from ..data_processors.mastery_features_processor import MasteryFeaturesProcessor
 from ..utils.data_utils import ChampionsFeaturesDataset, MultiEpochsDataLoader
 from .common import BaseRecommender
 
 
 class SummonerTower(nn.Module):
-    def __init__(self):
+    def __init__(self, num_continuous_features=1):
         super().__init__()
         self.num_factors = 10
         # 10 ranks from Iron to Challenger
         self.rank_factors = nn.Embedding(10, 8)
         # 5 lanes
         self.lane_factors = nn.Embedding(5, 8)
+        # 17 MOST played role
+        self.role_factors = nn.Embedding(17, 8)
+        # IsCasual
+        # plays long games
+
         self.input_dim = (
-            self.rank_factors.embedding_dim + self.lane_factors.embedding_dim
+            self.rank_factors.embedding_dim
+            + self.lane_factors.embedding_dim
+            + self.role_factors.embedding_dim
+            + num_continuous_features
         )
         self.mlp = nn.Sequential(
             nn.Linear(self.input_dim, 64),
@@ -36,9 +42,18 @@ class SummonerTower(nn.Module):
             nn.Linear(32, self.num_factors),
         )
 
-    def forward(self, rank_ids, lane_ids):
+    def forward(self, rank_ids, lane_ids, role_ids, avg_kda):
+        if avg_kda.dim() == 0:
+            avg_kda = avg_kda.unsqueeze(0)
+
         x = torch.concat(
-            [self.rank_factors(rank_ids), self.lane_factors(lane_ids)], dim=-1
+            [
+                self.rank_factors(rank_ids),
+                self.lane_factors(lane_ids),
+                self.role_factors(role_ids),
+                avg_kda,  # shape: [batch, num_cont_features]
+            ],
+            dim=-1,
         )
         return self.mlp(x)
 
@@ -64,7 +79,6 @@ class ChampTower(nn.Module):
             self.attack_type_factors.embedding_dim
             + self.adaptive_type_factors.embedding_dim
             + self.resource_factors.embedding_dim
-            # NOTE: Turn this back on later
             + self.role_mlp[-1].out_features
             + self.position_mlp[-1].out_features
         )
@@ -111,7 +125,9 @@ class TwoTowerModel(nn.Module):
         champion_embedding = self.champ_tower(*champ_tensor_tuple)
 
         score = (summoner_embedding * champion_embedding).sum(dim=-1)
-        return score
+        # Squeeze the score to between 0 and 10
+        score = torch.sigmoid(score) * 10
+        return score.squeeze(-1)
 
 
 class TwoTowerRecommender(BaseRecommender):
@@ -172,6 +188,7 @@ class TwoTowerRecommender(BaseRecommender):
         categorical_cols = [
             "summoner_rank",
             "summoner_lane",
+            "summoner_role",
             "champ_attack_type",
             "champ_adaptive_type",
             "champ_resource",
@@ -222,7 +239,8 @@ class TwoTowerRecommender(BaseRecommender):
         )
 
         model = TwoTowerModel().to(self.device)
-        epochs = 5
+        # TODO: Change
+        epochs = 1
         self.train_and_evaluate_model(model, train_loader, test_loader, epochs, lr)
 
         # Predict for the given summoner
@@ -231,7 +249,10 @@ class TwoTowerRecommender(BaseRecommender):
 
         rank_ids = torch.tensor(summoner_df["summoner_rank"], dtype=torch.long)
         lane_ids = torch.tensor(summoner_df["summoner_lane"], dtype=torch.long)
-        summoner_tensor_tuple = (rank_ids, lane_ids)
+        role_ids = torch.tensor(summoner_df["summoner_role"], dtype=torch.long)
+        avg_kda = torch.tensor(summoner_df["summoner_avg_kda"], dtype=torch.long)
+
+        summoner_tensor_tuple = (rank_ids, lane_ids, role_ids, avg_kda)
 
         champ_df = (
             df[

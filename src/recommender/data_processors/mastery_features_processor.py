@@ -86,22 +86,40 @@ class MasteryFeaturesProcessor(BaseProcessor):
                 await self.summoner_match_loader.async_dump_data_for_puuid(puuid)
             match_history = self.summoner_match_loader.load_dict_from_pkl(puuid)
             lane_counts = defaultdict(int)
+            role_counts = defaultdict(int)
+            # Average KDA between champions
+            kdas = []
             for champion in match_history:
                 if "_" in champion:
                     continue
+                kdas.append(
+                    (
+                        match_history[f"{champion}_kills"]
+                        + match_history[f"{champion}_assists"]
+                    )
+                    / max(1, match_history[f"{champion}_deaths"])
+                )
+
                 games_played = match_history[champion]
                 if champion == "FiddleSticks":
                     champion = "Fiddlesticks"
                 for lane in champ_metadata[champion]["positions"]:
                     lane_counts[lane] += games_played
+                for role in champ_metadata[champion]["roles"]:
+                    role_counts[role] += games_played
 
             # Break ties of lanes randomly
             sorted_lanes = sorted(
                 lane_counts.items(), key=lambda x: (-x[1], random.random())
             )
+            sorted_roles = sorted(
+                role_counts.items(), key=lambda x: (-x[1], random.random())
+            )
 
             puuid_dict[puuid]["rank"] = rank
             puuid_dict[puuid]["lane"] = sorted_lanes[0][0]
+            puuid_dict[puuid]["role"] = sorted_roles[0][0]
+            puuid_dict[puuid]["avg_kda"] = sum(kdas) / len(kdas)
 
         # Just loops through second layer
         for attribute in puuid_dict[next(iter(puuid_dict))]:

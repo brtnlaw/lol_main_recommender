@@ -28,6 +28,8 @@ class ChampionsFeaturesDataset(Dataset):
         # ===== Summoners ======
         self.ranks = torch.tensor(df["summoner_rank"].values, dtype=torch.long)
         self.lanes = torch.tensor(df["summoner_lane"].values, dtype=torch.long)
+        self.sum_roles = torch.tensor(df["summoner_role"].values, dtype=torch.long)
+        self.avg_kdas = torch.tensor(df["summoner_avg_kda"].values, dtype=torch.long)
 
         # ====== Champions ======
         self.attack_types = torch.tensor(
@@ -53,7 +55,13 @@ class ChampionsFeaturesDataset(Dataset):
 
     def __getitem__(self, idx):
         """Gets puuid, champion, and rating."""
-        summoner_features = (self.ranks[idx], self.lanes[idx])
+        summoner_features = (
+            self.ranks[idx],
+            self.lanes[idx],
+            self.sum_roles[idx],
+            # Needs to be [batch, 1]
+            self.avg_kdas[idx].unsqueeze(-1),
+        )
         champion_features = (
             self.attack_types[idx],
             self.adaptive_types[idx],
